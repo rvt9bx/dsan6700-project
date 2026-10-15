@@ -2,7 +2,7 @@
 name = "movierec"
 version = "0.1.0"
 description = "A package for solo or group semantic movie recommendations."
-authors = ["Eleanor Byrd"]
+authors = ["Eleanor Byrd", "Erin Brzusek", "Noelle Martell", "Nkemdibe Okweye"]
 license = "MIT"
 readme = "README.md"
 

@@ -17,19 +17,19 @@ pip install movierec
 Clone and set up the repository with
 
 ```bash
-git clone TODO && cd movierec
-pip install -e ".[dev]"
+git clone https://github.com/rvt9bx/dsan6700-project.git && cd dsan6700-project
+uv sync
 ```
 
 Install pre-commit hooks with
 
 ```bash
-pre-commit install
+uv run pre-commit install
 ```
 
 Run tests using
 
 ```
-pytest -v tests
+uv run pytest -v tests
 ```
 
