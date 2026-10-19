@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+
 from movierec.api.schemas import RecommendationRequest, RecommendationResponse
 from movierec.retrieval.search import search_movies
 
