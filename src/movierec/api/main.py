@@ -76,7 +76,7 @@ def health():
 
 @app.get("/ready")
 def ready():
-    # TODO: Check that Qdrant is reachable and usable.
+    # TODO: Check that Qdrant is reachable and usable
     return {"status": "ready"}
 
 
