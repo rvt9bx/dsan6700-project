@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eenie Meenie Movies</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main id="app">
+
+  <!-- 1. INTRO -->
+  <section id="screen-intro" class="screen">
+    <span class="brand">Eenie Meenie Movies</span>
+    <!-- TODO: decorative map with sample pins (copy from mockup S1) -->
+    <h1>Pick a movie everyone's into.</h1>
+    <p class="sub">Everyone writes what they're in the mood for, in secret. We find the movie where your picks overlap.</p>
+    <ol class="steps">
+      <li>Pass the phone around</li>
+      <li>Each person seals their pick</li>
+      <li>Open them together and see the overlap</li>
+    </ol>
+    <div class="spacer"></div>
+    <button class="btn" data-action="go-start">Get started</button>
+  </section>
+
+  <!-- 2. GET STARTED -->
+  <section id="screen-start" class="screen" hidden>
+    <h1>Who's watching?</h1>
+    <div class="mode-row">
+      <button class="mode" data-mode="solo">Just me<span>Help me decide</span></button>
+      <button class="mode" data-mode="group">A group<span>Pass the phone</span></button>
+    </div>
+    <div id="group-setup" class="card">
+      <div class="row">
+        <span>How many people?</span>
+        <div class="stepper">
+          <button data-action="size-down" aria-label="Fewer people">−</button>
+          <span id="size-label">3</span>
+          <button data-action="size-up" aria-label="More people">+</button>
+        </div>
+      </div>
+      <div id="name-list"><!-- filled by renderNames() --></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" data-action="begin">Start</button>
+  </section>
+
+  <!-- 3. HAND-OFF -->
+  <section id="screen-handoff" class="screen center" hidden>
+    <div class="envelopes"><!-- filled by renderEnvelopes() --></div>
+    <h1>Hand the phone to <span class="js-cur-name"></span></h1>
+    <p class="sub" id="handoff-sub"></p>
+    <button class="btn" data-action="ready">I'm <span class="js-cur-name"></span>, show my turn</button>
+  </section>
+
+  <!-- 4. INPUT -->
+  <section id="screen-input" class="screen" hidden>
+    <div class="row">
+      <h1 id="input-title"></h1>
+      <span id="turn-label" class="muted"></span>
+    </div>
+    <div class="map" id="input-map">
+      <span class="axis x-left">Cozy</span><span class="axis x-right">Intense</span>
+      <span class="axis y-top">Light</span><span class="axis y-bottom">Dark</span>
+      <div class="halo" id="my-halo"></div>
+      <div class="pin big" id="my-pin"></div>
+    </div>
+    <div class="card">
+      <label for="pick-text">What are you in the mood for?</label>
+      <textarea id="pick-text" rows="3"></textarea>
+      <p id="pick-error" class="error" hidden>Write a few words first, even just a movie you love.</p>
+    </div>
+    <div class="envelopes"></div>
+    <div class="spacer"></div>
+    <button class="btn" data-action="seal" id="seal-btn">Seal my pick</button>
+    <p class="hint" id="next-hint"></p>
+  </section>
+
+  <!-- 5. SEALED -->
+  <section id="screen-sealed" class="screen center" hidden>
+    <div class="big-envelope" id="big-envelope"></div>
+    <h1>Sealed. Nobody can peek.</h1>
+    <p class="sub" id="sealed-sub"></p>
+    <div class="envelopes"></div>
+  </section>
+
+  <!-- 6. LOADING (job is running on the backend) -->
+  <section id="screen-loading" class="screen center-left" hidden>
+    <h1>Opening everyone's picks</h1>
+    <ul class="load-steps" id="load-steps">
+      <li data-step="0">Picks received</li>
+      <li data-step="1">Searching the movie shelf</li>
+      <li data-step="2">Balancing everyone's picks</li>
+    </ul>
+    <p class="error" id="load-error" hidden>Something went wrong finding your movie. <button class="link" data-action="retry">Try again</button></p>
+  </section>
+
+  <!-- 7. RESULTS -->
+  <section id="screen-results" class="screen" hidden>
+    <h1 id="results-title">Your overlap</h1>
+    <div class="map" id="results-map"><!-- pins, areas, poster drawn by renderResults() --></div>
+    <h2 id="movie-title"></h2>
+    <p class="muted" id="movie-meta"></p>
+    <p id="movie-overview"></p>
+    <div class="card" id="fit-bars"><!-- one row per person; tap to open their pick --></div>
+    <p class="muted" id="fair-line"></p>
+    <div id="alternates"></div>
+    <div class="btn-row">
+      <button class="btn ghost" data-action="edit">Edit our picks</button>
+      <button class="btn" data-action="watch" id="watch-btn">We're watching this</button>
+    </div>
+    <button class="link" data-action="restart">New movie night</button>
+  </section>
+
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
