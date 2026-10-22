@@ -4,7 +4,7 @@
  *
  * Sections:
  *   1. Config + state
- *   2. Screen switching
+ *   2. Screen switching + top bar
  *   3. Setup (mode, group size, names)
  *   4. Turns (hand-off, input, live pin, seal)
  *   5. API calls (async job pattern) + mock mode
@@ -35,6 +35,16 @@ const PLACEHOLDERS = [
   "Big loud action, pure fun",
   "Smart sci-fi we'll argue about after",
 ];
+// Colors for placeholder posters: [top of gradient, bottom of gradient, title color].
+// Each movie always gets the same one (picked from its title).
+const POSTER_TONES = [
+  ['#44624D', '#121D16', '#F2D27A'],
+  ['#7BA3C9', '#1B2C46', '#FFFFFF'],
+  ['#E0A060', '#5C2A10', '#FFF1DC'],
+  ['#D7695A', '#6E1F22', '#FFE3DA'],
+  ['#9C6BB0', '#3A1D4A', '#F6E7FF'],
+  ['#4D9C9A', '#143A3C', '#E3FFF9'],
+];
 
 /**
  * Builds a brand-new, empty app state. Used when the page first loads and
@@ -60,29 +70,57 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 /**
- * Lists the people taking part, with a display name, color and what they wrote.
- * A blank name becomes "You" (solo) or "Person N" (group).
- * @returns {{i: number, name: string, color: string, text: string}[]}
+ * Lists the people taking part, with a display name, avatar letter, color and
+ * what they wrote. A blank name becomes "You" (solo) or "Person N" (group),
+ * and their avatar shows "Y" or the number N.
+ * @returns {{i: number, name: string, initial: string, color: string, text: string}[]}
  */
 function people() {
   const n = state.mode === 'solo' ? 1 : state.size;
-  return Array.from({ length: n }, (_, i) => ({
-    i,
-    name: state.names[i].trim() || (state.mode === 'solo' ? 'You' : `Person ${i + 1}`),
-    color: COLORS[i],
-    text: state.texts[i] || '',
-  }));
+  return Array.from({ length: n }, (_, i) => {
+    const typed = state.names[i].trim();
+    const fallback = state.mode === 'solo' ? 'You' : `Person ${i + 1}`;
+    return {
+      i,
+      name: typed || fallback,
+      initial: typed ? typed[0].toUpperCase() : (state.mode === 'solo' ? 'Y' : String(i + 1)),
+      color: COLORS[i],
+      text: state.texts[i] || '',
+    };
+  });
 }
 
-// ---------- 2. SCREEN SWITCHING ----------
+// ---------- 2. SCREEN SWITCHING + TOP BAR ----------
 
 /**
- * Shows one screen and hides all the others, then scrolls to the top.
+ * Shows one screen and hides all the others, updates the top bar, then
+ * scrolls to the top.
  * @param {string} screen name of the screen, e.g. 'intro' shows #screen-intro
  */
 function show(screen) {
   $$('.screen').forEach((el) => { el.hidden = el.id !== `screen-${screen}`; });
+  renderNav(screen);
   window.scrollTo(0, 0);
+}
+
+/**
+ * Fills the right side of the top bar. On the intro it shows two short notes;
+ * everywhere else it shows Setup / Picks / Results with the current step
+ * highlighted (on phones only the current step shows).
+ * @param {string} screen the screen being shown
+ */
+function renderNav(screen) {
+  if (screen === 'intro') {
+    $('#nav').innerHTML = '<span class="pill">No sign-up</span><span class="pill">Works solo too</span>';
+    return;
+  }
+  const step = screen === 'start' ? 0 : (screen === 'loading' || screen === 'results') ? 2 : 1;
+  const picks = state.mode === 'solo' ? 'Your pick' : `Picks · ${Math.min(state.turn + 1, state.size)} of ${state.size}`;
+  const labels = ['Setup', step === 1 ? picks : 'Picks', 'Results'];
+  $('#nav').innerHTML = `<div class="steps-nav">${labels.map((label, k) => {
+    const cls = k < step ? 'done' : k === step ? 'on' : '';
+    return `<span class="${cls}"${k === step ? ' aria-current="step"' : ''}>${k < step ? '✓ ' : ''}${label}</span>`;
+  }).join('')}</div>`;
 }
 
 // ---------- 3. SETUP ----------
@@ -99,8 +137,8 @@ function renderSetup() {
 }
 
 /**
- * Draws one name box (with a colored dot) per person. Typing in a box saves
- * the name into state right away.
+ * Draws one name box (with a numbered colored dot) per person. Typing in a box
+ * saves the name into state right away.
  */
 function renderNames() {
   const list = $('#name-list');
@@ -109,7 +147,7 @@ function renderNames() {
     const row = document.createElement('div');
     row.className = 'name-row';
     row.innerHTML = `
-      <span class="dot" style="background:${p.color}"></span>
+      <span class="dot" style="background:${p.color}" aria-hidden="true">${p.i + 1}</span>
       <input aria-label="Person ${p.i + 1}" placeholder="Person ${p.i + 1}">`;
     const input = row.querySelector('input');
     input.value = state.names[p.i];
@@ -121,17 +159,25 @@ function renderNames() {
 // ---------- 4. TURNS ----------
 
 /**
- * Draws the row of envelopes, one per person: filled = already sealed,
- * outlined = whose turn it is now, dashed = still waiting.
+ * Draws everyone's progress in two places:
+ *   - the row of envelopes (filled = sealed, outlined = writing now, dashed = waiting)
+ *   - the "Picks so far" list on wide screens (avatar, name, envelope, status)
  */
 function renderEnvelopes() {
-  const html = people().map((p) => {
-    const status = p.i < state.turn ? 'sealed' : p.i === state.turn ? 'current' : 'waiting';
-    return `<div class="env-wrap">
-      <div class="env ${status}" style="--c:${p.color}"></div>
-      <span>${escapeHtml(p.name)}</span></div>`;
+  const all = people();
+  const statusOf = (p) => (p.i < state.turn ? 'sealed' : p.i === state.turn ? 'current' : 'waiting');
+  const envHtml = all.map((p) => `<div class="env-wrap">
+      <div class="env ${statusOf(p)}" style="--c:${p.color}"></div>
+      <span>${escapeHtml(p.name)}</span></div>`).join('');
+  $$('.envelopes').forEach((el) => { el.innerHTML = envHtml; });
+
+  const label = { sealed: 'Sealed', current: 'Writing', waiting: 'Waiting' };
+  const listHtml = all.map((p) => {
+    const s = statusOf(p);
+    return `<div class="who-row">${avatar(p)}<span class="grow">${escapeHtml(p.name)}</span>
+      <span class="env ${s}" style="--c:${p.color}"></span><span class="status st-${s}">${label[s]}</span></div>`;
   }).join('');
-  $$('.envelopes').forEach((el) => { el.innerHTML = html; });
+  $$('.who-list').forEach((el) => { el.innerHTML = listHtml; });
 }
 
 /**
@@ -142,6 +188,7 @@ function startTurn() {
   if (state.mode === 'solo') return showInput();
   renderEnvelopes();
   const cur = people()[state.turn];
+  $('#handoff-av').innerHTML = avatar(cur, 'xl');
   $$('.js-cur-name').forEach((el) => { el.textContent = cur.name; });
   $('#handoff-sub').textContent = state.turn === 0
     ? 'Everyone else, look away. Picks stay sealed until the end.'
@@ -150,16 +197,18 @@ function startTurn() {
 }
 
 /**
- * Shows the input screen for the current person: their title ("Person 2's turn"),
- * turn counter, text box, mood map pin (or idea suggestions while the map is
- * paused), and a hint about who goes next.
+ * Shows the input screen for the current person: their avatar and title
+ * ("Person 2's turn"), the text box, idea suggestions (or the mood map pin),
+ * everyone's progress, and a hint about who goes next.
  */
 function showInput() {
   const all = people();
   const cur = all[state.turn];
   const solo = state.mode === 'solo';
+  $('#screen-input').style.setProperty('--c', cur.color);
+  $('#input-av').innerHTML = avatar(cur, 'lg');
   $('#input-title').textContent = solo ? 'Your pick' : `${cur.name}'s turn`;
-  $('#turn-label').textContent = solo ? '' : `${state.turn + 1} of ${all.length}`;
+  $('#input-sub').textContent = solo ? 'Describe the movie you want tonight.' : 'Everyone else, look away.';
   $('#pick-text').value = cur.text;
   $('#pick-text').placeholder = PLACEHOLDERS[state.turn % PLACEHOLDERS.length];
   $('#pick-error').hidden = true;
@@ -167,6 +216,8 @@ function showInput() {
   $('#next-hint').textContent = solo ? ''
     : state.turn === all.length - 1 ? 'Last pick. Then everyone opens them together.'
     : `Then hand the phone to ${all[state.turn + 1].name}`;
+  $('#input-side').hidden = solo;
+  $('#input-envs').hidden = solo;
   renderEnvelopes();
   $('#input-map').hidden = !SHOW_MOOD_MAP;
   $('#ideas').hidden = SHOW_MOOD_MAP;
@@ -177,14 +228,14 @@ function showInput() {
 }
 
 /**
- * Shows three example descriptions under the text box. Tapping one fills the
+ * Shows three example descriptions near the text box. Tapping one fills the
  * box with it. Each turn gets a different three (and not the one already
  * shown as the text box's placeholder). Used while the mood map is paused.
  */
 function renderIdeas() {
   const ideas = [1, 2, 3].map((k) => (state.turn + k) % PLACEHOLDERS.length);
-  $('#ideas').innerHTML = `<p class="muted">Need an idea? Tap one:</p>
-    ${ideas.map((n) => `<button class="idea" data-idea="${n}">${escapeHtml(PLACEHOLDERS[n])}</button>`).join('')}`;
+  $('#ideas').innerHTML = `<span class="muted">Need an idea?</span>
+    ${ideas.map((n) => `<button class="idea" data-idea="${n}"><b aria-hidden="true">+</b>${escapeHtml(PLACEHOLDERS[n])}</button>`).join('')}`;
 }
 
 // Live pin. Placeholder logic: keyword counts.
@@ -317,8 +368,8 @@ async function waitForJob(id) {
  * is missing from someone's list it counts as 0 for them, so nobody is ignored.
  * @param {object[]} perPerson one /results response per person, in order
  * @param {object[]} members the people, from people()
- * @returns {object|null} {movie, alternates, members} for the results screen,
- *   or null if no movies came back at all
+ * @returns {object|null} {movie, group, alternates, members} for the results
+ *   screen, or null if no movies came back at all
  */
 function combineResults(perPerson, members) {
   const byId = new Map();
@@ -335,7 +386,10 @@ function combineResults(perPerson, members) {
   const [top, ...rest] = ranked;
   return {
     movie: top.movie,
-    alternates: rest.slice(0, 2).map((c) => ({ title: c.movie.title, group_fit: c.group })),
+    group: top.group,
+    alternates: rest.slice(0, 2).map((c) => ({
+      title: c.movie.title, year: c.movie.year, poster_path: c.movie.poster_path, group_fit: c.group,
+    })),
     // x, y still come from the front end until the API sends them
     members: members.map((p, i) => ({ name: p.name, fit: top.scores[i], ...placeFromText(p.text) })),
   };
@@ -406,7 +460,7 @@ async function mockApi(method, path, body) {
 }
 
 /**
- * Updates the loading screen checklist: steps before k get a filled circle
+ * Updates the loading screen checklist: steps before k get a check mark
  * (done), step k spins (working on it), steps after k stay dashed (waiting).
  * @param {number} k 0 = picks received, 1 = searching, 2 = balancing
  */
@@ -420,57 +474,63 @@ function setLoadStep(k) {
 // ---------- 6. RESULTS ----------
 
 /**
- * Draws the results screen from state.results: the mood map with everyone's
- * pin and the movie poster in the middle (or just the poster while the map is
- * paused), the movie's title, details and summary, everyone's fit bars, the
- * lowest-fit line, and the runner-up movies.
+ * Draws the results screen from state.results: the poster stack (the pick in
+ * front, runners-up behind it) or the mood map, the movie's title, details and
+ * summary, the group-fit ring, everyone's fit bars, and the "also close" movies.
  */
 function renderResults() {
-  const { movie, alternates, members } = state.results;
+  const { movie, group, alternates, members } = state.results;
   const all = people();
+  const solo = state.mode === 'solo';
 
   // Map: one area + pin per person, poster at the average position.
   const cx = avg(members.map((m) => m.x));
   const cy = avg(members.map((m) => m.y));
-  const poster = movie.poster_path
-    ? `<img class="poster" src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHtml(movie.title)} poster" style="left:${cx}%;top:${cy}%">`
-    : `<div class="poster placeholder" style="left:${cx}%;top:${cy}%">${escapeHtml(movie.title)}</div>`;
   $('#results-map').innerHTML = `
     <span class="axis x-left">Cozy</span><span class="axis x-right">Intense</span>
+    <span class="axis y-top">Light</span><span class="axis y-bottom">Dark</span>
     ${members.map((m, i) => `<div class="area" style="left:${m.x}%;top:${m.y}%;--c:${COLORS[i]}"></div>`).join('')}
     ${members.map((m, i) => `<div class="pin" style="left:${m.x}%;top:${m.y}%;--c:${COLORS[i]}"></div>`).join('')}
-    ${poster}`;
+    <div style="position:absolute;left:${cx}%;top:${cy}%">${posterHtml(movie)}</div>`;
   $('#results-map').hidden = !SHOW_MOOD_MAP;
 
-  // While the map is paused, show the poster on its own instead.
+  // While the map is paused: the pick in front, up to two runners-up fanned out behind.
   $('#results-poster').hidden = SHOW_MOOD_MAP;
-  $('#results-poster').innerHTML = movie.poster_path
-    ? `<img class="poster" src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHtml(movie.title)} poster">`
-    : `<div class="poster placeholder">${escapeHtml(movie.title)}</div>`;
+  $('#results-poster').innerHTML = `
+    ${alternates.map((a, k) => posterHtml(a, `back b${k + 1}`)).join('')}
+    <span class="ribbon">${solo ? 'Your pick' : "Tonight's pick"}</span>
+    ${posterHtml(movie, 'front')}`;
 
-  $('#results-title').textContent = state.mode === 'solo' ? 'Your match' : 'Your overlap';
+  $('#results-title').textContent = solo ? 'Your match' : 'Your overlap';
   $('#movie-title').textContent = movie.title;
   // The API only sends id, title, score, overview today; the rest shows up when it's added.
   const meta = [
     movie.year,
     movie.runtime_min && formatRuntime(movie.runtime_min),
-    movie.genres && movie.genres.join(', '),
+    ...(movie.genres || []),
     movie.providers && `on ${movie.providers.join(', ')}`,
   ].filter(Boolean);
-  $('#movie-meta').textContent = meta.join(' · ');
+  $('#movie-meta').innerHTML = meta.map((m) => `<span class="tag">${escapeHtml(m)}</span>`).join('');
   $('#movie-meta').hidden = meta.length === 0;
   $('#movie-overview').textContent = movie.overview || '';
+  $('#movie-overview').hidden = !movie.overview;
   $('#watch-btn').textContent = `We're watching ${movie.title}`;
 
-  renderFitBars(members, all);
-
+  $('#score-ring').innerHTML = ringSvg(group, solo ? 'match' : 'group fit');
+  $('#score-label').textContent = solo ? 'Match' : 'Group fit';
   const lowest = members.reduce((a, b) => ((b.fit ?? 0) < (a.fit ?? 0) ? b : a));
-  $('#fair-line').textContent = state.mode === 'solo'
+  $('#fair-line').textContent = solo
     ? 'Tap your bar to see what you wrote.'
-    : `Lowest fit: ${lowest.name} at ${pct(lowest.fit)}. Tap anyone to open their sealed pick.`;
+    : lowest.fit == null
+      ? `This wasn't in ${lowest.name}'s top picks. Tap a name to open their sealed pick.`
+      : `Everyone is at ${pct(lowest.fit)} or higher. Tap a name to open their sealed pick.`;
+
+  renderFitBars(members, all, true);
 
   $('#alternates').innerHTML = alternates.length
-    ? `<p class="muted">Next closest: ${alternates.map((a) => escapeHtml(a.title)).join(', ')}</p>` : '';
+    ? `<p class="eyebrow quiet">Also close</p><div class="also">${alternates.map((a) => `
+        <div class="alt">${posterHtml(a, 'mini')}<span>${escapeHtml(a.title)}<small>${pct(a.group_fit)} ${solo ? 'match' : 'group fit'}</small></span></div>`).join('')}</div>`
+    : '';
 }
 
 /**
@@ -478,19 +538,55 @@ function renderResults() {
  * the top). Tapping a bar opens that person's sealed pick underneath it.
  * A dash means the movie wasn't in that person's own results.
  * @param {object[]} members name, fit and position for each person
- * @param {object[]} all the people, from people() (used for what they wrote)
+ * @param {object[]} all the people, from people() (for avatars and what they wrote)
+ * @param {boolean} [animate] grow the bars in from zero (only on first draw)
  */
-function renderFitBars(members, all) {
+function renderFitBars(members, all, animate = false) {
   const rows = members
     .map((m, i) => ({ ...m, i, color: COLORS[i], text: all[i] ? all[i].text : '' }))
     .sort((a, b) => (b.fit ?? 0) - (a.fit ?? 0));
   $('#fit-bars').innerHTML = rows.map((r) => `
     <button class="fit-row" data-person="${r.i}" aria-expanded="${state.revealed === r.i}">
-      <span>${escapeHtml(r.name)}</span>
-      <span class="bar"><span style="width:${pct(r.fit ?? 0)};background:${r.color}"></span></span>
-      <span title="${r.fit == null ? 'Not in their top picks' : ''}">${r.fit == null ? '—' : pct(r.fit)}</span>
+      ${avatar(all[r.i])}
+      <span class="fit-name">${escapeHtml(r.name)}</span>
+      <span class="bar"><span class="${animate ? 'grow' : ''}" style="width:${pct(r.fit ?? 0)};background:${r.color}"></span></span>
+      <span class="fit-pct" title="${r.fit == null ? 'Not in their top picks' : ''}">${r.fit == null ? '—' : pct(r.fit)}</span>
     </button>
     ${state.revealed === r.i ? `<p class="note" style="--c:${r.color}">"${escapeHtml(r.text)}"</p>` : ''}`).join('');
+}
+
+/**
+ * Draws a movie poster. Uses the real TMDB poster when the API sends one;
+ * otherwise draws a colored placeholder with the title (and year, if known).
+ * @param {{title: string, year?: number, poster_path?: string}} movie
+ * @param {string} [cls] extra classes, e.g. 'front', 'back b1', 'mini'
+ * @returns {string} HTML for the poster
+ */
+function posterHtml(movie, cls = '') {
+  const title = escapeHtml(movie.title);
+  if (movie.poster_path) {
+    return `<img class="poster ${cls}" src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${title} poster">`;
+  }
+  const [top, bottom, ink] = POSTER_TONES[hashText(movie.title) % POSTER_TONES.length];
+  // Shrink the title for long words so a word like "PADDINGTON" never breaks in half.
+  const longest = Math.max(...String(movie.title).split(/\s+/).map((w) => w.length));
+  const fit = Math.min(1, 7.5 / longest).toFixed(2);
+  return `<div class="poster ${cls}" style="--p1:${top};--p2:${bottom};--pt:${ink};--fit:${fit}" role="img" aria-label="${title}">
+    ${movie.year ? `<span class="yr">${movie.year}</span>` : ''}<span class="t">${title}</span></div>`;
+}
+
+/**
+ * Draws the circular score (like a progress ring) for the group fit.
+ * @param {number} f the score from 0 to 1
+ * @param {string} label read out by screen readers, e.g. 'group fit'
+ * @returns {string} SVG markup
+ */
+function ringSvg(f, label) {
+  const c = 194.8; // circumference of the ring (2 × π × radius 31)
+  return `<svg viewBox="0 0 74 74" role="img" aria-label="${pct(f)} ${label}">
+    <circle cx="37" cy="37" r="31" class="ring-track"/>
+    <circle cx="37" cy="37" r="31" class="ring-fill" stroke-dasharray="${(f * c).toFixed(1)} ${c}" transform="rotate(-90 37 37)"/>
+    <text x="37" y="43" text-anchor="middle">${pct(f)}</text></svg>`;
 }
 
 // ---------- 7. EVENT WIRING ----------
@@ -519,7 +615,9 @@ document.addEventListener('click', (e) => {
 
   const action = e.target.closest('[data-action]')?.dataset.action;
   switch (action) {
-    case 'go-start': renderSetup(); show('start'); break;
+    case 'go-intro': show('intro'); break;
+    case 'start-group': state.mode = 'group'; renderSetup(); show('start'); break;
+    case 'start-solo': state.mode = 'solo'; state.texts = []; state.turn = 0; startTurn(); break;
     case 'size-down': state.size = Math.max(2, state.size - 1); renderSetup(); break;
     case 'size-up': state.size = Math.min(6, state.size + 1); renderSetup(); break;
     case 'begin': state.texts = []; state.turn = 0; startTurn(); break;
@@ -532,10 +630,11 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Every keystroke in the text box moves the pin and clears the "write something" error.
+// Every keystroke in the text box clears the "write something" error (and
+// moves the pin, when the mood map is on).
 $('#pick-text').addEventListener('input', (e) => {
   const cur = people()[state.turn];
-  movePin(e.target.value, cur.color);
+  if (SHOW_MOOD_MAP) movePin(e.target.value, cur.color);
   $('#pick-error').hidden = true;
 });
 
@@ -562,6 +661,12 @@ function avg(xs) { return xs.reduce((a, b) => a + b, 0) / xs.length; }
 function pct(f) { return `${Math.round(f * 100)}%`; }
 /** Turns 130 into "2 hr 10 min". */
 function formatRuntime(min) { return `${Math.floor(min / 60)} hr ${min % 60} min`; }
+/** Turns any text into a stable number (the same text always gives the same number). */
+function hashText(s) { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; }
+/** A person's avatar: their initial (or number) on a circle in their color. */
+function avatar(p, cls = '') {
+  return `<span class="av ${cls}" style="background:${p.color}" aria-hidden="true">${escapeHtml(p.initial)}</span>`;
+}
 /** Makes text safe to put inside HTML, so a name like "<b>" shows as text instead of breaking the page. */
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

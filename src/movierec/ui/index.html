@@ -2,119 +2,180 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Eenie Meenie Movies</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+<header class="topbar">
+  <span class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>Eenie Meenie Movies</span>
+  <nav class="nav" id="nav" aria-label="Progress"><!-- filled by renderNav() --></nav>
+</header>
+
 <main id="app">
 
   <!-- 1. INTRO -->
-  <section id="screen-intro" class="screen">
-    <span class="brand">Eenie Meenie Movies</span>
-    <!-- Mood map paused (see SHOW_MOOD_MAP in app.js). TODO: decide what goes here. -->
-    <h1>Pick a movie everyone's into.</h1>
-    <p class="sub">Everyone writes what they're in the mood for, in secret. We find the movie where your picks overlap.</p>
-    <ol class="steps">
-      <li>Pass the phone around</li>
-      <li>Each person seals their pick</li>
-      <li>Open them together and see the overlap</li>
-    </ol>
-    <div class="spacer"></div>
-    <button class="btn" data-action="go-start">Get started</button>
+  <section id="screen-intro" class="screen intro">
+    <div class="intro-copy">
+      <p class="eyebrow">Movie night, settled</p>
+      <h1 class="display">Pick a movie <span class="hl">everyone's</span> into.</h1>
+      <p class="sub lead">Everyone writes what they're in the mood for, in secret. We find the movie where your picks overlap.</p>
+      <ol class="howto">
+        <li><span class="n">1</span>Pass the phone around</li>
+        <li><span class="n">2</span>Each person seals their pick</li>
+        <li><span class="n">3</span>Open them together and see the overlap</li>
+      </ol>
+      <div class="spacer"></div>
+      <div class="ctas">
+        <button class="btn" data-action="start-group">Start a group night <span aria-hidden="true">&rarr;</span></button>
+        <button class="btn ghost" data-action="start-solo">Just me</button>
+      </div>
+    </div>
+    <!-- Decorative picture: three moods overlap and the movie sits in the middle.
+         The mood map is paused (see SHOW_MOOD_MAP in app.js). -->
+    <div class="intro-art" aria-hidden="true">
+      <div class="ov">
+        <span class="c c1"></span><span class="c c2"></span><span class="c c3"></span>
+        <div class="poster s1" style="--p1:#D7695A;--p2:#6E1F22;--pt:#FFE3DA;--fit:.75"><span class="yr">2017</span><span class="t">Paddington 2</span></div>
+        <div class="poster s2" style="--p1:#7BA3C9;--p2:#1B2C46;--pt:#FFFFFF"><span class="yr">2022</span><span class="t">Glass Onion</span></div>
+        <div class="poster main" style="--p1:#44624D;--p2:#121D16;--pt:#F2D27A"><span class="yr">2019</span><span class="t">Knives Out</span></div>
+        <span class="who w1"><span class="av" style="background:#E2553A">M</span>"cozy, funny"</span>
+        <span class="who w2"><span class="av" style="background:#2C7DA0">S</span>"a twist"</span>
+        <span class="who w3"><span class="av" style="background:#C48A0E">J</span>"a mystery"</span>
+      </div>
+    </div>
   </section>
 
   <!-- 2. GET STARTED -->
-  <section id="screen-start" class="screen" hidden>
+  <section id="screen-start" class="screen narrow" hidden>
+    <button class="back" data-action="go-intro">&larr; Back</button>
     <h1>Who's watching?</h1>
     <div class="mode-row">
-      <button class="mode" data-mode="solo">Just me<span>Help me decide</span></button>
-      <button class="mode" data-mode="group">A group<span>Pass the phone</span></button>
+      <button class="mode" data-mode="solo">
+        <span class="mode-art" aria-hidden="true"><i></i></span>
+        <span class="mode-title">Just me</span><span class="mode-sub">Help me decide</span>
+      </button>
+      <button class="mode" data-mode="group">
+        <span class="mode-art" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="mode-title">A group</span><span class="mode-sub">Pass the phone</span>
+      </button>
     </div>
     <div id="group-setup" class="card">
       <div class="row">
-        <span>How many people?</span>
+        <span class="label">How many people?</span>
         <div class="stepper">
-          <button data-action="size-down" aria-label="Fewer people">−</button>
+          <button data-action="size-down" aria-label="Fewer people">&minus;</button>
           <span id="size-label">3</span>
           <button data-action="size-up" aria-label="More people">+</button>
         </div>
       </div>
       <div id="name-list"><!-- filled by renderNames() --></div>
+      <p class="muted small">Names are optional. Each person gets their own color.</p>
     </div>
     <div class="spacer"></div>
-    <button class="btn" data-action="begin">Start</button>
+    <div class="actions">
+      <button class="btn" data-action="begin">Start <span aria-hidden="true">&rarr;</span></button>
+    </div>
   </section>
 
   <!-- 3. HAND-OFF -->
-  <section id="screen-handoff" class="screen center" hidden>
-    <div class="envelopes"><!-- filled by renderEnvelopes() --></div>
+  <section id="screen-handoff" class="screen narrow center" hidden>
+    <div id="handoff-av"><!-- filled by startTurn() --></div>
     <h1>Hand the phone to <span class="js-cur-name"></span></h1>
     <p class="sub" id="handoff-sub"></p>
-    <button class="btn" data-action="ready">I'm <span class="js-cur-name"></span>, show my turn</button>
+    <div class="envelopes"><!-- filled by renderEnvelopes() --></div>
+    <div class="actions">
+      <button class="btn" data-action="ready"><span>I'm <span class="js-cur-name"></span>, show my turn</span></button>
+    </div>
   </section>
 
   <!-- 4. INPUT -->
-  <section id="screen-input" class="screen" hidden>
-    <div class="row">
-      <h1 id="input-title"></h1>
-      <span id="turn-label" class="muted"></span>
-    </div>
-    <div class="map" id="input-map">
-      <span class="axis x-left">Cozy</span><span class="axis x-right">Intense</span>
-      <span class="axis y-top">Light</span><span class="axis y-bottom">Dark</span>
-      <div class="halo" id="my-halo"></div>
-      <div class="pin big" id="my-pin"></div>
-    </div>
-    <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
-    <div class="card">
+  <section id="screen-input" class="screen input" hidden>
+    <div class="card write">
+      <div class="write-head">
+        <span id="input-av"><!-- filled by showInput() --></span>
+        <div><h1 id="input-title"></h1><p class="muted" id="input-sub"></p></div>
+      </div>
+      <div class="map" id="input-map">
+        <span class="axis x-left">Cozy</span><span class="axis x-right">Intense</span>
+        <span class="axis y-top">Light</span><span class="axis y-bottom">Dark</span>
+        <div class="halo" id="my-halo"></div>
+        <div class="pin big" id="my-pin"></div>
+      </div>
       <label for="pick-text">What are you in the mood for?</label>
-      <textarea id="pick-text" rows="3"></textarea>
+      <textarea id="pick-text" class="paper" rows="5"></textarea>
       <p id="pick-error" class="error" hidden>Write a few words first, even just a movie you love.</p>
+      <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
+      <div class="spacer"></div>
+      <div class="envelopes only-narrow" id="input-envs"></div>
+      <div class="write-foot">
+        <p class="foot" id="next-hint"></p>
+        <button class="btn" data-action="seal" id="seal-btn">Seal my pick</button>
+      </div>
     </div>
-    <div class="envelopes"></div>
-    <div class="spacer"></div>
-    <button class="btn" data-action="seal" id="seal-btn">Seal my pick</button>
-    <p class="hint" id="next-hint"></p>
+    <aside class="side" id="input-side">
+      <div class="card">
+        <p class="eyebrow quiet">Picks so far</p>
+        <div class="who-list"><!-- filled by renderEnvelopes() --></div>
+      </div>
+      <div class="card lock">
+        <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><rect x="5" y="10" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></span>
+        <span>Picks stay sealed. Nobody sees one until everyone has written theirs.</span>
+      </div>
+    </aside>
   </section>
 
   <!-- 5. SEALED -->
-  <section id="screen-sealed" class="screen center" hidden>
-    <div class="big-envelope" id="big-envelope"></div>
+  <section id="screen-sealed" class="screen narrow center" hidden>
+    <div class="big-envelope" id="big-envelope"><span class="check" aria-hidden="true">&#10003;</span></div>
     <h1>Sealed. Nobody can peek.</h1>
     <p class="sub" id="sealed-sub"></p>
     <div class="envelopes"></div>
   </section>
 
   <!-- 6. LOADING (job is running on the backend) -->
-  <section id="screen-loading" class="screen center-left" hidden>
+  <section id="screen-loading" class="screen narrow" hidden>
+    <div class="loading-art" aria-hidden="true"><i></i><i></i><i></i></div>
     <h1>Opening everyone's picks</h1>
-    <ul class="load-steps" id="load-steps">
+    <ul class="load-steps card" id="load-steps">
       <li data-step="0">Picks received</li>
       <li data-step="1">Searching the movie shelf</li>
       <li data-step="2">Balancing everyone's picks</li>
     </ul>
+    <p class="muted small">Usually a few seconds.</p>
     <p class="error" id="load-error" hidden>Something went wrong finding your movie. <button class="link" data-action="retry">Try again</button></p>
   </section>
 
   <!-- 7. RESULTS -->
-  <section id="screen-results" class="screen" hidden>
-    <h1 id="results-title">Your overlap</h1>
-    <div class="map" id="results-map"><!-- pins, areas, poster drawn by renderResults() --></div>
-    <div class="poster-card" id="results-poster" hidden><!-- poster drawn by renderResults() while the mood map is paused --></div>
-    <h2 id="movie-title"></h2>
-    <p class="muted" id="movie-meta"></p>
-    <p id="movie-overview"></p>
-    <div class="card" id="fit-bars"><!-- one row per person; tap to open their pick --></div>
-    <p class="muted" id="fair-line"></p>
-    <div id="alternates"></div>
-    <div class="btn-row">
-      <button class="btn ghost" data-action="edit">Edit our picks</button>
-      <button class="btn" data-action="watch" id="watch-btn">We're watching this</button>
+  <section id="screen-results" class="screen results" hidden>
+    <div class="results-art">
+      <div class="map" id="results-map"><!-- pins, areas, poster drawn by renderResults() --></div>
+      <div class="poster-stack" id="results-poster" hidden><!-- posters drawn by renderResults() --></div>
     </div>
-    <button class="link" data-action="restart">New movie night</button>
+    <div class="res">
+      <p class="eyebrow" id="results-title">Your overlap</p>
+      <h1 id="movie-title"></h1>
+      <div class="tags" id="movie-meta"></div>
+      <p class="sub" id="movie-overview"></p>
+      <div class="card score-card">
+        <div class="score">
+          <div class="ring" id="score-ring"><!-- drawn by renderResults() --></div>
+          <div><b id="score-label">Group fit</b><p class="muted small" id="fair-line"></p></div>
+        </div>
+        <div class="divider"></div>
+        <div class="fits" id="fit-bars"><!-- one row per person; tap to open their pick --></div>
+      </div>
+      <div id="alternates"></div>
+      <div class="spacer"></div>
+      <div class="res-ctas">
+        <button class="btn" data-action="watch" id="watch-btn">We're watching this</button>
+        <button class="btn ghost" data-action="edit">Edit our picks</button>
+        <button class="link" data-action="restart">New movie night</button>
+      </div>
+    </div>
   </section>
 
 </main>
