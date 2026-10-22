@@ -181,8 +181,8 @@ function renderEnvelopes() {
 }
 
 /**
- * Starts the current person's turn. In group mode it shows the "Hand the phone
- * to ..." screen first; in solo mode it goes straight to the input screen.
+ * Starts the current person's turn. In group mode it shows the "Pass it to ..."
+ * screen first; in solo mode it goes straight to the input screen.
  */
 function startTurn() {
   if (state.mode === 'solo') return showInput();
@@ -215,7 +215,7 @@ function showInput() {
   $('#seal-btn').textContent = solo ? 'Find my movie' : 'Seal my pick';
   $('#next-hint').textContent = solo ? ''
     : state.turn === all.length - 1 ? 'Last pick. Then everyone opens them together.'
-    : `Then hand the phone to ${all[state.turn + 1].name}`;
+    : `Then pass it to ${all[state.turn + 1].name}`;
   $('#input-side').hidden = solo;
   $('#input-envs').hidden = solo;
   renderEnvelopes();
