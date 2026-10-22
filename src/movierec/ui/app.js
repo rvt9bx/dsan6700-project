@@ -1,5 +1,6 @@
-/* Overlap: front end for the group movie recommender.
- * Plain JavaScript, no framework. Served by FastAPI at GET /.
+/* Eenie Meenie Movies: front end for the group movie recommender.
+ * Plain JavaScript, no framework. FastAPI serves this file at /static/app.js
+ * and the page (index.html) at GET /.
  *
  * Sections:
  *   1. Config + state
@@ -13,12 +14,15 @@
 
 // ---------- 1. CONFIG + STATE ----------
 
-// Flip to false once the backend is running. Mock mode fakes the API.
+// true = fake the API inside this file (no backend needed).
+// false = send real requests to the FastAPI server.
 const USE_MOCK = true;
 const POLL_MS = 1000;          // how often to check job status
 const POLL_TIMEOUT_MS = 60000; // give up after a minute
 
+// One color per person, in order (person 1 = first color, and so on).
 const COLORS = ['#E2553A', '#2C7DA0', '#C48A0E', '#8E4D9E', '#2F8F6B', '#C2457A'];
+// Example text shown in the empty text box, a different one for each turn.
 const PLACEHOLDERS = [
   "Something cozy with a twist I won't see coming",
   "A heist that's funny, nothing too long",
@@ -28,6 +32,11 @@ const PLACEHOLDERS = [
   "Smart sci-fi we'll argue about after",
 ];
 
+/**
+ * Builds a brand-new, empty app state. Used when the page first loads and
+ * when someone taps "New movie night".
+ * @returns {object} everything the app needs to remember between screens
+ */
 function freshState() {
   return {
     mode: 'group',            // 'solo' | 'group'
@@ -42,9 +51,15 @@ function freshState() {
 }
 let state = freshState();
 
+// Shortcuts: $('#id') finds one element on the page, $$('.class') finds all matches.
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
+/**
+ * Lists the people taking part, with a display name, color and what they wrote.
+ * A blank name becomes "You" (solo) or "Person N" (group).
+ * @returns {{i: number, name: string, color: string, text: string}[]}
+ */
 function people() {
   const n = state.mode === 'solo' ? 1 : state.size;
   return Array.from({ length: n }, (_, i) => ({
@@ -57,6 +72,10 @@ function people() {
 
 // ---------- 2. SCREEN SWITCHING ----------
 
+/**
+ * Shows one screen and hides all the others, then scrolls to the top.
+ * @param {string} screen name of the screen, e.g. 'intro' shows #screen-intro
+ */
 function show(screen) {
   $$('.screen').forEach((el) => { el.hidden = el.id !== `screen-${screen}`; });
   window.scrollTo(0, 0);
@@ -64,6 +83,10 @@ function show(screen) {
 
 // ---------- 3. SETUP ----------
 
+/**
+ * Draws the "Who's watching?" screen: highlights the chosen mode, hides the
+ * group options in solo mode, and updates the people count and name boxes.
+ */
 function renderSetup() {
   $$('.mode').forEach((b) => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
   $('#group-setup').hidden = state.mode === 'solo';
@@ -71,6 +94,10 @@ function renderSetup() {
   renderNames();
 }
 
+/**
+ * Draws one name box (with a colored dot) per person. Typing in a box saves
+ * the name into state right away.
+ */
 function renderNames() {
   const list = $('#name-list');
   list.innerHTML = '';
@@ -89,8 +116,11 @@ function renderNames() {
 
 // ---------- 4. TURNS ----------
 
+/**
+ * Draws the row of envelopes, one per person: filled = already sealed,
+ * outlined = whose turn it is now, dashed = still waiting.
+ */
 function renderEnvelopes() {
-  // TODO: style .env.sealed / .env.current / .env.waiting / .env.open in styles.css
   const html = people().map((p) => {
     const status = p.i < state.turn ? 'sealed' : p.i === state.turn ? 'current' : 'waiting';
     return `<div class="env-wrap">
@@ -100,6 +130,10 @@ function renderEnvelopes() {
   $$('.envelopes').forEach((el) => { el.innerHTML = html; });
 }
 
+/**
+ * Starts the current person's turn. In group mode it shows the "Hand the phone
+ * to ..." screen first; in solo mode it goes straight to the input screen.
+ */
 function startTurn() {
   if (state.mode === 'solo') return showInput();
   renderEnvelopes();
@@ -111,6 +145,10 @@ function startTurn() {
   show('handoff');
 }
 
+/**
+ * Shows the input screen for the current person: their title ("Person 2's turn"),
+ * turn counter, text box, mood map pin, and a hint about who goes next.
+ */
 function showInput() {
   const all = people();
   const cur = all[state.turn];
@@ -138,6 +176,15 @@ const WORDS = {
   light: ['funny', 'comedy', 'light', 'happy', 'fun', 'silly', 'laugh', 'upbeat', 'musical'],
   dark: ['dark', 'sad', 'grim', 'crime', 'murder', 'serious', 'bleak', 'mystery', 'gritty'],
 };
+
+/**
+ * Guesses where a description sits on the mood map by counting mood words.
+ * More "intense" words push the pin right, more "cozy" words push it left;
+ * "dark" pushes it down and "light" pushes it up.
+ * @param {string} text what the person typed
+ * @returns {{x: number, y: number}} position in percent (kept between 14 and 86
+ *   so the pin never touches the edge)
+ */
 function placeFromText(text) {
   const t = text.toLowerCase();
   const count = (list) => list.filter((w) => t.includes(w)).length;
@@ -147,6 +194,13 @@ function placeFromText(text) {
     y: clamp(50 + 13 * (count(WORDS.dark) - count(WORDS.light))),
   };
 }
+
+/**
+ * Moves the person's pin (and the soft circle around it) on the input map to
+ * match what they have typed so far.
+ * @param {string} text what the person typed
+ * @param {string} color the person's color
+ */
 function movePin(text, color) {
   const { x, y } = placeFromText(text);
   for (const el of [$('#my-pin'), $('#my-halo')]) {
@@ -156,6 +210,11 @@ function movePin(text, color) {
   }
 }
 
+/**
+ * Runs when someone taps "Seal my pick". Saves their text (or shows an error if
+ * it is empty), shows the "Sealed" screen for a moment, then moves on to the
+ * next person, or sends everyone's picks to the API after the last person.
+ */
 function seal() {
   const text = $('#pick-text').value.trim();
   if (!text) { $('#pick-error').hidden = false; return; }
@@ -174,7 +233,7 @@ function seal() {
 }
 
 // ---------- 5. API (async job pattern) ----------
-// Matches the fastapi_skeleton branch (src/movierec/api/main.py + schemas.py):
+// Matches the FastAPI endpoints in src/movierec/api/main.py (schemas in schemas.py):
 //   POST /recommend              body {query_text, top_k}         -> {job_id, status}
 //   GET  /recommend/{id}/status  -> {job_id, status: "pending"|"running"|"completed"|"failed", error}
 //   GET  /recommend/{id}/results -> {results: [{id, title, score, overview}]}
@@ -186,6 +245,14 @@ function seal() {
 
 const TOP_K = 5;
 
+/**
+ * Sends everyone's picks to the API and shows the results. Steps:
+ *   1. POST /recommend once per person, collecting a job ID for each
+ *   2. wait until every job reports "completed"
+ *   3. GET each job's results and merge them into one group pick
+ * The loading screen's checklist advances at each step. If anything fails,
+ * it shows an error with a "Try again" button.
+ */
 async function submitPicks() {
   setLoadStep(0);
   $('#load-error').hidden = true;
@@ -209,6 +276,11 @@ async function submitPicks() {
   }
 }
 
+/**
+ * Asks the API "is this job done yet?" every POLL_MS until it is.
+ * @param {string} id the job ID returned by POST /recommend
+ * @throws if the job fails or takes longer than POLL_TIMEOUT_MS
+ */
 async function waitForJob(id) {
   const started = Date.now();
   while (Date.now() - started < POLL_TIMEOUT_MS) {
@@ -220,9 +292,15 @@ async function waitForJob(id) {
   throw new Error('Timed out waiting for results');
 }
 
-// Merge each person's top-k list into one group ranking.
-// Group score = average of everyone's score; a movie missing from
-// someone's list counts as 0 for them, so nobody gets ignored.
+/**
+ * Merges each person's list of movies into one group ranking.
+ * A movie's group score is the average of everyone's score for it; if a movie
+ * is missing from someone's list it counts as 0 for them, so nobody is ignored.
+ * @param {object[]} perPerson one /results response per person, in order
+ * @param {object[]} members the people, from people()
+ * @returns {object|null} {movie, alternates, members} for the results screen,
+ *   or null if no movies came back at all
+ */
 function combineResults(perPerson, members) {
   const byId = new Map();
   perPerson.forEach((res, i) => {
@@ -244,6 +322,15 @@ function combineResults(perPerson, members) {
   };
 }
 
+/**
+ * The one place the front end talks to the FastAPI server. Every request goes
+ * through here. When USE_MOCK is true it answers with fake data instead.
+ * @param {string} method 'GET' or 'POST'
+ * @param {string} path the endpoint, e.g. '/recommend'
+ * @param {object} [body] data to send as JSON (POST only)
+ * @returns {Promise<object>} the server's JSON reply
+ * @throws if the server replies with an error code (404, 500, ...)
+ */
 async function api(method, path, body) {
   if (USE_MOCK) return mockApi(method, path, body);
   const res = await fetch(path, {
@@ -255,7 +342,7 @@ async function api(method, path, body) {
   return res.json();
 }
 
-// Mock backend that returns exactly what Erin's endpoints return,
+// Mock backend that returns exactly what the FastAPI endpoints return,
 // so flipping USE_MOCK to false needs no other change.
 const mockJobs = {};
 const MOCK_MOVIES = [
@@ -265,6 +352,18 @@ const MOCK_MOVIES = [
   { id: 346648, title: 'Paddington 2', overview: 'Paddington takes on odd jobs to buy a gift for his aunt, until the gift is stolen.' },
   { id: 146233, title: 'Prisoners', overview: 'When two girls go missing, a desperate father takes matters into his own hands.' },
 ];
+
+/**
+ * Pretends to be the FastAPI server so the app works with no backend.
+ * Waits 0.3 s like a real network trip, then:
+ *   POST /recommend        -> makes a fake job and returns its ID
+ *   GET  .../status        -> "running" the first time, "completed" after that
+ *   GET  .../results       -> the five MOCK_MOVIES with made-up scores
+ * @param {string} method 'GET' or 'POST'
+ * @param {string} path the endpoint
+ * @param {object} [body] data sent with a POST
+ * @returns {Promise<object>} the same shape of reply the real server sends
+ */
 async function mockApi(method, path, body) {
   await sleep(300);
   if (method === 'POST') {
@@ -287,6 +386,11 @@ async function mockApi(method, path, body) {
   };
 }
 
+/**
+ * Updates the loading screen checklist: steps before k get a filled circle
+ * (done), step k spins (working on it), steps after k stay dashed (waiting).
+ * @param {number} k 0 = picks received, 1 = searching, 2 = balancing
+ */
 function setLoadStep(k) {
   $$('#load-steps li').forEach((li) => {
     const n = Number(li.dataset.step);
@@ -296,6 +400,11 @@ function setLoadStep(k) {
 
 // ---------- 6. RESULTS ----------
 
+/**
+ * Draws the results screen from state.results: the mood map with everyone's
+ * pin and the movie poster in the middle, the movie's title, details and
+ * summary, everyone's fit bars, the lowest-fit line, and the runner-up movies.
+ */
 function renderResults() {
   const { movie, alternates, members } = state.results;
   const all = people();
@@ -337,6 +446,13 @@ function renderResults() {
     ? `<p class="muted">Next closest: ${alternates.map((a) => escapeHtml(a.title)).join(', ')}</p>` : '';
 }
 
+/**
+ * Draws one bar per person showing how well the movie fits them (best fit at
+ * the top). Tapping a bar opens that person's sealed pick underneath it.
+ * A dash means the movie wasn't in that person's own results.
+ * @param {object[]} members name, fit and position for each person
+ * @param {object[]} all the people, from people() (used for what they wrote)
+ */
 function renderFitBars(members, all) {
   const rows = members
     .map((m, i) => ({ ...m, i, color: COLORS[i], text: all[i] ? all[i].text : '' }))
@@ -352,6 +468,8 @@ function renderFitBars(members, all) {
 
 // ---------- 7. EVENT WIRING ----------
 
+// One click handler for the whole page. Each button says what it does with a
+// data-action="..." attribute in index.html, and this switch runs the match.
 document.addEventListener('click', (e) => {
   const modeBtn = e.target.closest('[data-mode]');
   if (modeBtn) { state.mode = modeBtn.dataset.mode; renderSetup(); return; }
@@ -379,13 +497,18 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// Every keystroke in the text box moves the pin and clears the "write something" error.
 $('#pick-text').addEventListener('input', (e) => {
   const cur = people()[state.turn];
   movePin(e.target.value, cur.color);
   $('#pick-error').hidden = true;
 });
 
-// TODO: agree on an endpoint with the team for click tracking (monitoring lane).
+/**
+ * Records which movie the group chose when they tap "We're watching ...".
+ * In mock mode it only prints to the browser console.
+ * TODO: agree on an endpoint with the team for click tracking (monitoring lane).
+ */
 function logWatch() {
   if (USE_MOCK) { console.log('watch clicked', state.results.movie.title); return; }
   fetch('/events/watch', {
@@ -395,10 +518,16 @@ function logWatch() {
 }
 
 // ---------- helpers ----------
+
+/** Waits ms milliseconds (use with await). */
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+/** Average of a list of numbers. */
 function avg(xs) { return xs.reduce((a, b) => a + b, 0) / xs.length; }
+/** Turns 0.92 into "92%". */
 function pct(f) { return `${Math.round(f * 100)}%`; }
+/** Turns 130 into "2 hr 10 min". */
 function formatRuntime(min) { return `${Math.floor(min / 60)} hr ${min % 60} min`; }
+/** Makes text safe to put inside HTML, so a name like "<b>" shows as text instead of breaking the page. */
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
