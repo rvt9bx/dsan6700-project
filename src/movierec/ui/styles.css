@@ -83,6 +83,18 @@ label { font-size: 17px; font-weight: 600; }
 .poster { width: 60px; height: 88px; border-radius: 6px; border: 3px solid var(--ink); object-fit: cover; }
 .poster.placeholder { background: #2F4A3B; color: #fff; font-size: 10px; font-weight: 800; padding: 4px; display: flex; align-items: flex-end; }
 
+/* Idea suggestions and poster card (shown while the mood map is paused) */
+.ideas { display: flex; flex-direction: column; gap: 8px; }
+.ideas[hidden], .poster-card[hidden] { display: none; }
+.idea {
+  min-height: 44px; border: 1.5px solid var(--line); border-radius: 14px; padding: 10px 14px;
+  background: var(--card); color: var(--ink); font-family: inherit; font-size: 15px; text-align: left; cursor: pointer;
+}
+.idea:hover { border-color: var(--ink); }
+.poster-card { display: flex; justify-content: center; background: var(--card); border-radius: var(--radius); padding: 18px; }
+.poster-card .poster { position: static; transform: none; width: 140px; height: 206px; }
+.poster-card .poster.placeholder { font-size: 16px; padding: 10px; }
+
 /* Envelopes */
 .envelopes { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .env-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); }

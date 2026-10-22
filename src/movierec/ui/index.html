@@ -14,7 +14,7 @@
   <!-- 1. INTRO -->
   <section id="screen-intro" class="screen">
     <span class="brand">Eenie Meenie Movies</span>
-    <!-- TODO: decorative map with sample pins (copy from mockup S1) -->
+    <!-- Mood map paused (see SHOW_MOOD_MAP in app.js). TODO: decide what goes here. -->
     <h1>Pick a movie everyone's into.</h1>
     <p class="sub">Everyone writes what they're in the mood for, in secret. We find the movie where your picks overlap.</p>
     <ol class="steps">
@@ -68,6 +68,7 @@
       <div class="halo" id="my-halo"></div>
       <div class="pin big" id="my-pin"></div>
     </div>
+    <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
     <div class="card">
       <label for="pick-text">What are you in the mood for?</label>
       <textarea id="pick-text" rows="3"></textarea>
@@ -102,6 +103,7 @@
   <section id="screen-results" class="screen" hidden>
     <h1 id="results-title">Your overlap</h1>
     <div class="map" id="results-map"><!-- pins, areas, poster drawn by renderResults() --></div>
+    <div class="poster-card" id="results-poster" hidden><!-- poster drawn by renderResults() while the mood map is paused --></div>
     <h2 id="movie-title"></h2>
     <p class="muted" id="movie-meta"></p>
     <p id="movie-overview"></p>

@@ -20,6 +20,10 @@ const USE_MOCK = true;
 const POLL_MS = 1000;          // how often to check job status
 const POLL_TIMEOUT_MS = 60000; // give up after a minute
 
+// The mood map (Cozy/Intense, Light/Dark) is paused until the team decides on it.
+// true = show the map; false = show idea suggestions and a plain poster instead.
+const SHOW_MOOD_MAP = false;
+
 // One color per person, in order (person 1 = first color, and so on).
 const COLORS = ['#E2553A', '#2C7DA0', '#C48A0E', '#8E4D9E', '#2F8F6B', '#C2457A'];
 // Example text shown in the empty text box, a different one for each turn.
@@ -147,7 +151,8 @@ function startTurn() {
 
 /**
  * Shows the input screen for the current person: their title ("Person 2's turn"),
- * turn counter, text box, mood map pin, and a hint about who goes next.
+ * turn counter, text box, mood map pin (or idea suggestions while the map is
+ * paused), and a hint about who goes next.
  */
 function showInput() {
   const all = people();
@@ -163,9 +168,23 @@ function showInput() {
     : state.turn === all.length - 1 ? 'Last pick. Then everyone opens them together.'
     : `Then hand the phone to ${all[state.turn + 1].name}`;
   renderEnvelopes();
-  movePin(cur.text, cur.color);
+  $('#input-map').hidden = !SHOW_MOOD_MAP;
+  $('#ideas').hidden = SHOW_MOOD_MAP;
+  if (SHOW_MOOD_MAP) movePin(cur.text, cur.color);
+  else renderIdeas();
   show('input');
   $('#pick-text').focus();
+}
+
+/**
+ * Shows three example descriptions under the text box. Tapping one fills the
+ * box with it. Each turn gets a different three (and not the one already
+ * shown as the text box's placeholder). Used while the mood map is paused.
+ */
+function renderIdeas() {
+  const ideas = [1, 2, 3].map((k) => (state.turn + k) % PLACEHOLDERS.length);
+  $('#ideas').innerHTML = `<p class="muted">Need an idea? Tap one:</p>
+    ${ideas.map((n) => `<button class="idea" data-idea="${n}">${escapeHtml(PLACEHOLDERS[n])}</button>`).join('')}`;
 }
 
 // Live pin. Placeholder logic: keyword counts.
@@ -402,8 +421,9 @@ function setLoadStep(k) {
 
 /**
  * Draws the results screen from state.results: the mood map with everyone's
- * pin and the movie poster in the middle, the movie's title, details and
- * summary, everyone's fit bars, the lowest-fit line, and the runner-up movies.
+ * pin and the movie poster in the middle (or just the poster while the map is
+ * paused), the movie's title, details and summary, everyone's fit bars, the
+ * lowest-fit line, and the runner-up movies.
  */
 function renderResults() {
   const { movie, alternates, members } = state.results;
@@ -420,6 +440,13 @@ function renderResults() {
     ${members.map((m, i) => `<div class="area" style="left:${m.x}%;top:${m.y}%;--c:${COLORS[i]}"></div>`).join('')}
     ${members.map((m, i) => `<div class="pin" style="left:${m.x}%;top:${m.y}%;--c:${COLORS[i]}"></div>`).join('')}
     ${poster}`;
+  $('#results-map').hidden = !SHOW_MOOD_MAP;
+
+  // While the map is paused, show the poster on its own instead.
+  $('#results-poster').hidden = SHOW_MOOD_MAP;
+  $('#results-poster').innerHTML = movie.poster_path
+    ? `<img class="poster" src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHtml(movie.title)} poster">`
+    : `<div class="poster placeholder">${escapeHtml(movie.title)}</div>`;
 
   $('#results-title').textContent = state.mode === 'solo' ? 'Your match' : 'Your overlap';
   $('#movie-title').textContent = movie.title;
@@ -473,6 +500,14 @@ function renderFitBars(members, all) {
 document.addEventListener('click', (e) => {
   const modeBtn = e.target.closest('[data-mode]');
   if (modeBtn) { state.mode = modeBtn.dataset.mode; renderSetup(); return; }
+
+  const ideaBtn = e.target.closest('[data-idea]');
+  if (ideaBtn) {
+    $('#pick-text').value = PLACEHOLDERS[Number(ideaBtn.dataset.idea)];
+    $('#pick-error').hidden = true;
+    $('#pick-text').focus();
+    return;
+  }
 
   const fitRow = e.target.closest('.fit-row');
   if (fitRow) {
