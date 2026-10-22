@@ -1,18 +1,13 @@
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from movierec.api.schemas import RecommendationRequest
 from movierec.retrieval.search import search_movies
 
-UI_DIR = Path(__file__).resolve().parent.parent / "ui"
-
 app = FastAPI(title="Eenie Meenie Movies", version="0.1.0")
-app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 
 # Demo-only: replace with a persistent job store for production
 jobs: dict[str, dict[str, Any]] = {}
@@ -20,7 +15,8 @@ jobs: dict[str, dict[str, Any]] = {}
 
 @app.get("/", include_in_schema=False)
 def home():
-    return FileResponse(UI_DIR / "index.html")
+    # Adjust this path
+    return FileResponse("movierec/frontend/index.html")
 
 
 @app.post("/recommend", status_code=202)
