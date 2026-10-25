@@ -13,6 +13,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.146.0",
+    "fastembed>=0.9.1",
+    "fastparquet>=2026.9.0",
+    "pandas>=3.0.6",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.0",
     "qdrant-client>=1.20.0",
@@ -40,3 +43,7 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.1",
 ]
+
+[project.scripts]
+movierec-ingest = "movierec.retrieval.ingest:main"
+

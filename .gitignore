@@ -147,3 +147,7 @@ dmypy.json
 *.tsv
 *.gz
 *.csv
+*.parquet
+
+# Model cache
+models/
