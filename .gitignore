@@ -142,3 +142,12 @@ dmypy.json
 .DS_Store
 
 .vscode/
+
+# Data
+*.tsv
+*.gz
+*.csv
+*.parquet
+
+# Model cache
+models/
