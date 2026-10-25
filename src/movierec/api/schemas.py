@@ -7,15 +7,36 @@ class RecommendationRequest(BaseModel):
         min_length=1,
         description="Each participant's description of what they want to watch",
     )
-    top_k: int = Field(default=5, ge=1)
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        description="Total number of movies to return, including the top pick",
+    )
+
+
+class ParticipantScore(BaseModel):
+    participant_index: int = Field(
+        ...,
+        ge=0,
+        description="Zero-based index of the participant's query",
+    )
+    score: float = Field(
+        ...,
+        description="Similarity score for this participant",
+    )
 
 
 class MovieRecommendation(BaseModel):
-    id: int | str
+    id: str
     title: str
-    score: float
     overview: str | None = None
+    group_score: float = Field(
+        ...,
+        description="Aggregated similarity score for the group",
+    )
+    individual_scores: list[ParticipantScore] = Field(default_factory=list)
 
 
 class RecommendationResponse(BaseModel):
-    results: list[MovieRecommendation]
+    top_pick: MovieRecommendation
+    alternates: list[MovieRecommendation] = Field(default_factory=list)
