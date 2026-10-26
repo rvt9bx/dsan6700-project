@@ -1,16 +1,19 @@
-from movierec.api.schemas import MovieRecommendation
+from movierec.api.schemas import MovieRecommendation, ParticipantScore
 
 
 def search_movies(query_text: str, top_k: int = 5) -> list[MovieRecommendation]:
     # TODO: Embed query_text using Hugging Face model
     # TODO: Query Qdrant vector database
 
-    # mock return value so the GUI can test integration immediately
+    # Mock return value for GUI integration testing
     return [
         MovieRecommendation(
-            id=101,
+            id="101",
             title="Stub Movie: The Lion King",
-            score=0.95,
+            group_score=0.95,
+            individual_scores=[
+                ParticipantScore(participant_index=0, score=0.95),
+            ],
             overview="The circle of life...",
         )
     ]
