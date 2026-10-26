@@ -2,11 +2,12 @@ from pydantic import BaseModel, Field
 
 
 class RecommendationRequest(BaseModel):
-    query_text: str = Field(
+    query_texts: list[str] = Field(
         ...,
-        description="User text input from the GUI describing what they want to watch",
+        min_length=1,
+        description="Each participant's description of what they want to watch",
     )
-    top_k: int = Field(5, description="Number of movie recommendations to return")
+    top_k: int = Field(default=5, ge=1)
 
 
 class MovieRecommendation(BaseModel):
