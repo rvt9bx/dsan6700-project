@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    image: movierec:latest
+    env_file:
+      - path: .env
+        required: false                       # a fresh clone runs on defaults; copy .env.example to .env to override
+    ports:
+      - "8080:8080"                           # the only port we publish
+    restart: unless-stopped
