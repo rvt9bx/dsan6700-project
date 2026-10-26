@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -7,7 +8,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from movierec.api.schemas import RecommendationRequest
-from movierec.retrieval.search import search_movies
+from movierec.retrieval.search import (
+    health_check,
+    ready_check,
+    recommend_for_group,
+    search_movies,
+)
 
 UI_DIR = Path(__file__).resolve().parent.parent / "ui"
 
@@ -16,6 +22,18 @@ app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
 
 # Demo-only: replace with a persistent job store for production
 jobs: dict[str, dict[str, Any]] = {}
+
+
+def _run_recommendation_job(job_id: str, query_texts: list[str], top_k: int) -> None:
+    """Background worker: run recommendation and update job status."""
+    jobs[job_id]["status"] = "running"
+    try:
+        result = recommend_for_group(query_texts, top_k)
+        jobs[job_id]["status"] = "completed"
+        jobs[job_id]["result"] = result.model_dump()
+    except Exception as e:  # noqa: BLE001
+        jobs[job_id]["status"] = "failed"
+        jobs[job_id]["error"] = str(e)
 
 
 @app.get("/", include_in_schema=False)
@@ -34,11 +52,12 @@ def submit_recommendation(request: RecommendationRequest):
         "error": None,
     }
 
-    # TODO: Enqueue recommendation work here
-    # The worker should update jobs[job_id] to "running", then either:
-    #   {"status": "completed", "result": ...}
-    # or:
-    #   {"status": "failed", "error": ...}
+    thread = threading.Thread(
+        target=_run_recommendation_job,
+        args=(job_id, request.query_texts, request.top_k),
+        daemon=True,
+    )
+    thread.start()
 
     return {"job_id": job_id, "status": "pending"}
 
@@ -69,19 +88,18 @@ def recommendation_results(job_id: str):
 
 @app.get("/movies/search")
 def movie_search(q: str):
-    # TODO: Adapt this call to search_movies' actual signature and return type
+    # Placeholder for future searchbar UI
     return search_movies(q)
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok" if health_check() else "degraded"}
 
 
 @app.get("/ready")
 def ready():
-    # TODO: Check that Qdrant is reachable and usable
-    return {"status": "ready"}
+    return {"status": "ready" if ready_check() else "not ready"}
 
 
 # FastAPI serves interactive API docs at /docs by default
