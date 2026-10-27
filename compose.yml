@@ -1,10 +1,57 @@
+# Settings shared by app and ingest. Set here rather than in .env so the containers always find each other,
+# whatever .env says; these values override .env
+x-movierec-env: &movierec-env
+  QDRANT_URL: http://qdrant:6333                # the service name below, not localhost
+  EMBED_CACHE_DIR: /models
+  MOVIES_PATH: /data/clean/tmdb_movies.parquet
+
 services:
   app:
     build: .
     image: movierec:latest
     env_file:
       - path: .env
-        required: false                       # a fresh clone runs on defaults; copy .env.example to .env to override
+        required: false                         # a fresh clone runs on defaults; copy .env.example to .env to override
+    environment: *movierec-env
     ports:
-      - "8080:8080"                           # the only port we publish
+      - "8080:8080"                             # the only port we publish
+    volumes:
+      - models:/models                          # embedding weights, downloaded once, shared with ingest
+    depends_on:
+      qdrant:
+        condition: service_healthy
     restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.0                # pinned to match qdrant-client 1.20.0 in uv.lock
+    volumes:
+      - qdrant-storage:/qdrant/storage          # vectors survive restarts, rebuilds and unshelving
+    # no ports: reachable by app and ingest on the Compose network, never from the internet
+    healthcheck:                                # the image has no curl or wget; bash opens the connection itself
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333 && printf 'GET /readyz HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # One-shot job: embeds the movie Parquet into Qdrant, then exits. Not started by `docker compose up`;
+  # run it on purpose with `docker compose run --rm ingest` (add --limit 100 for a quick test)
+  ingest:
+    build: .
+    image: movierec:latest                      # the same image as app, with a different command
+    entrypoint: ["movierec-ingest"]
+    profiles: [ingest]
+    env_file:
+      - path: .env
+        required: false
+    environment: *movierec-env
+    volumes:
+      - models:/models
+      - ./data:/data:ro                         # put tmdb_movies.parquet in data/clean/ first
+    depends_on:
+      qdrant:
+        condition: service_healthy
+
+volumes:
+  models:
+  qdrant-storage:
