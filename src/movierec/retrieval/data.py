@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import math
@@ -74,34 +75,46 @@ def parse_genres(raw: object) -> list[str]:
 
     Accepts:
     - JSON array: '["Drama", "Comedy"]'
-    - Python repr: "[{'id': 18, 'name': 'Drama'}, ...]"
+    - Python repr: "['Drama', 'Comedy']" or "[{'id': 18, 'name': 'Drama'}, ...]"
     - CSV like: "Drama, Comedy"
     """
     if raw is None:
         return []
-    if isinstance(raw, float):
+    if isinstance(raw, float):  # Handles NaN values if processing pandas Series
         return []
+
     s = str(raw).strip()
     if not s or s == "[]":
         return []
 
-    # Try JSON array first: ["Drama", "Comedy"]
+    def _extract_from_list(parsed: list) -> list[str]:
+        genres = []
+        for item in parsed:
+            if isinstance(item, str):
+                genres.append(item)
+            elif isinstance(item, dict) and "name" in item:
+                genres.append(str(item["name"]))
+        return genres
+
+    # 1. Try standard JSON array parsing
     try:
         parsed = json.loads(s)
         if isinstance(parsed, list):
-            # Handle both ["Drama"] and [{"name": "Drama"}]
-            genres = []
-            for item in parsed:
-                if isinstance(item, str):
-                    genres.append(item)
-                elif isinstance(item, dict) and "name" in item:
-                    genres.append(str(item["name"]))
-            return genres
-    except json.JSONDecodeError:
+            return _extract_from_list(parsed)
+    except (json.JSONDecodeError, TypeError):
         pass
 
-    # Fallback: split on comma
-    return [g.strip() for g in s.split(",") if g.strip()]
+    # 2. Try Python literal evaluation (handles string: "['Drama', 'Comedy']")
+    try:
+        parsed = ast.literal_eval(s)
+        if isinstance(parsed, list):
+            return _extract_from_list(parsed)
+    except (ValueError, SyntaxError):
+        pass
+
+    # 3. Fallback: split on comma (stripping stray brackets or quotes)
+    clean_s = s.strip("[] ")
+    return [g.strip("'\" ") for g in clean_s.split(",") if g.strip("'\" ")]
 
 
 # ---------------------------------------------------------------- row cleaning

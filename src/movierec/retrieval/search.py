@@ -108,6 +108,7 @@ def recommend_for_group(
     # Over-fetch per participant to have enough unique candidates after merging
     fetch_limit = max(top_k * 3, 10)
     all_hits_per_participant = retriever.search_many(query_texts, limit=fetch_limit)
+    num_participants = len(all_hits_per_participant)
 
     # Merge by tmdb_id across participants
     # {tmdb_id: {participant_index: score, ...}}
@@ -124,6 +125,11 @@ def recommend_for_group(
     # Build recommendations with aggregated scores
     recommendations: list[MovieRecommendation] = []
     for tmdb_id, participant_scores in merged.items():
+        # Fill missing participant scores with 0.0
+        for idx in range(num_participants):
+            participant_scores.setdefault(idx, 0.0)
+
+        # Extract all scores sorted by participant index
         scores_list = list(participant_scores.values())
         group_score = agg_fn(scores_list)
 
