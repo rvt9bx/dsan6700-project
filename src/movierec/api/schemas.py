@@ -30,6 +30,12 @@ class MovieRecommendation(BaseModel):
     id: str
     title: str
     overview: str | None = None
+    year: int | None = None
+    genres: list[str] = Field(default_factory=list)
+    poster_path: str | None = Field(
+        default=None,
+        description="TMDB poster path, e.g. /abc.jpg; prefix with an image base URL",
+    )
     group_score: float = Field(
         ...,
         description="Aggregated similarity score for the group",

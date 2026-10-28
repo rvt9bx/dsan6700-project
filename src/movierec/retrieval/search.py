@@ -41,16 +41,25 @@ def _get_retriever() -> Retriever:
 
 
 # --------------------------------------------------------------------------- hit → recommendation conversion
+def _payload_fields(payload: dict) -> dict:
+    """Movie details from a Qdrant payload, in MovieRecommendation's field names."""
+    return {
+        "title": payload.get("title", "Unknown"),
+        "overview": payload.get("overview"),
+        "year": payload.get("year"),
+        "genres": payload.get("genres") or [],
+        "poster_path": payload.get("poster_path"),
+    }
+
+
 def _hits_to_recommendations(hits: list[Hit]) -> list[MovieRecommendation]:
     """Convert retrieval Hits to API MovieRecommendation (single-participant scores)."""
     recs: list[MovieRecommendation] = []
     for hit in hits:
-        payload = hit.payload
         recs.append(
             MovieRecommendation(
                 id=str(hit.tmdb_id),
-                title=payload.get("title", "Unknown"),
-                overview=payload.get("overview"),
+                **_payload_fields(hit.payload),
                 group_score=hit.score,
                 individual_scores=[
                     ParticipantScore(participant_index=0, score=hit.score)
@@ -142,8 +151,7 @@ def recommend_for_group(
         recommendations.append(
             MovieRecommendation(
                 id=str(tmdb_id),
-                title=payload.get("title", "Unknown"),
-                overview=payload.get("overview"),
+                **_payload_fields(payload),
                 group_score=group_score,
                 individual_scores=individual_scores,
             )
