@@ -16,7 +16,7 @@
 
 // true = fake the API inside this file (no backend needed).
 // false = send real requests to the FastAPI server.
-const USE_MOCK = true;
+const USE_MOCK = false;
 const POLL_MS = 1000;          // how often to check job status
 const POLL_TIMEOUT_MS = 60000; // give up after a minute
 
@@ -58,7 +58,7 @@ function freshState() {
     names: ['', '', '', '', '', ''],
     texts: [],                // texts[i] = person i's description
     turn: 0,                  // whose turn it is
-    jobIds: [],               // one job per person until the API accepts groups
+    jobId: null,              // the job the API is running for this group
     results: null,            // response from /results
     revealed: -1,             // which person's pick is open on results
   };
@@ -304,22 +304,22 @@ function seal() {
 
 // ---------- 5. API (async job pattern) ----------
 // Matches the FastAPI endpoints in src/movierec/api/main.py (schemas in schemas.py):
-//   POST /recommend              body {query_text, top_k}         -> {job_id, status}
+//   POST /recommend              body {query_texts: [...], top_k}  -> {job_id, status}
 //   GET  /recommend/{id}/status  -> {job_id, status: "pending"|"running"|"completed"|"failed", error}
-//   GET  /recommend/{id}/results -> {results: [{id, title, score, overview}]}
+//   GET  /recommend/{id}/results -> {top_pick, alternates}
+//     each movie: {id, title, overview, group_score,
+//                  individual_scores: [{participant_index, score}]}
 //
-// The API takes ONE query per job, so for now a group sends one job per person
-// and combineResults() merges them here in the browser.
-// TEMP: once the API accepts a list of members, send one job and let the
-// backend do the aggregation (recommend.py), then delete combineResults().
+// The whole group goes in ONE job. The backend combines everyone's picks
+// and sends back the group's top pick plus a few runners-up.
 
 const TOP_K = 5;
 
 /**
  * Sends everyone's picks to the API and shows the results. Steps:
- *   1. POST /recommend once per person, collecting a job ID for each
- *   2. wait until every job reports "completed"
- *   3. GET each job's results and merge them into one group pick
+ *   1. POST /recommend once with every person's text, in person order
+ *   2. wait until the job reports "completed"
+ *   3. GET the results (the backend has already combined them)
  * The loading screen's checklist advances at each step. If anything fails,
  * it shows an error with a "Try again" button.
  */
@@ -329,15 +329,16 @@ async function submitPicks() {
   show('loading');
   try {
     const members = people();
-    const jobIds = await Promise.all(members.map((p) =>
-      api('POST', '/recommend', { query_text: p.text, top_k: TOP_K }).then((r) => r.job_id)));
-    state.jobIds = jobIds;
+    const { job_id } = await api('POST', '/recommend', {
+      query_texts: members.map((p) => p.text),
+      top_k: TOP_K,
+    });
+    state.jobId = job_id;
     setLoadStep(1);
-    await Promise.all(jobIds.map(waitForJob));
+    await waitForJob(job_id);
     setLoadStep(2);
-    const perPerson = await Promise.all(jobIds.map((id) => api('GET', `/recommend/${id}/results`)));
-    state.results = combineResults(perPerson, members);
-    if (!state.results) throw new Error('No movies came back');
+    const res = await api('GET', `/recommend/${job_id}/results`);
+    state.results = toResults(res, members);
     renderResults();
     show('results');
   } catch (err) {
@@ -363,35 +364,24 @@ async function waitForJob(id) {
 }
 
 /**
- * Merges each person's list of movies into one group ranking.
- * A movie's group score is the average of everyone's score for it; if a movie
- * is missing from someone's list it counts as 0 for them, so nobody is ignored.
- * @param {object[]} perPerson one /results response per person, in order
+ * Turns the API's {top_pick, alternates} reply into what the results screen draws.
+ * individual_scores is matched to people by participant_index (0 = first person).
+ * Anyone with no score for the top pick gets null, shown as a dash.
+ * @param {object} res the /results reply
  * @param {object[]} members the people, from people()
- * @returns {object|null} {movie, group, alternates, members} for the results
- *   screen, or null if no movies came back at all
+ * @returns {object} {movie, group, alternates, members} for the results screen
  */
-function combineResults(perPerson, members) {
-  const byId = new Map();
-  perPerson.forEach((res, i) => {
-    (res.results || []).forEach((m) => {
-      if (!byId.has(m.id)) byId.set(m.id, { movie: m, scores: members.map(() => null) });
-      byId.get(m.id).scores[i] = m.score;
-    });
-  });
-  const ranked = [...byId.values()]
-    .map((c) => ({ ...c, group: avg(c.scores.map((s) => s ?? 0)) }))
-    .sort((a, b) => b.group - a.group);
-  if (!ranked.length) return null;
-  const [top, ...rest] = ranked;
+function toResults(res, members) {
+  const top = res.top_pick;
+  const scoreFor = (i) => (top.individual_scores || []).find((s) => s.participant_index === i)?.score ?? null;
   return {
-    movie: top.movie,
-    group: top.group,
-    alternates: rest.slice(0, 2).map((c) => ({
-      title: c.movie.title, year: c.movie.year, poster_path: c.movie.poster_path, group_fit: c.group,
+    movie: top,
+    group: top.group_score,
+    alternates: (res.alternates || []).slice(0, 2).map((a) => ({
+      title: a.title, year: a.year, poster_path: a.poster_path, group_fit: a.group_score,
     })),
     // x, y still come from the front end until the API sends them
-    members: members.map((p, i) => ({ name: p.name, fit: top.scores[i], ...placeFromText(p.text) })),
+    members: members.map((p, i) => ({ name: p.name, fit: scoreFor(i), ...placeFromText(p.text) })),
   };
 }
 
@@ -419,11 +409,11 @@ async function api(method, path, body) {
 // so flipping USE_MOCK to false needs no other change.
 const mockJobs = {};
 const MOCK_MOVIES = [
-  { id: 546554, title: 'Knives Out', overview: "A detective untangles a wealthy family's alibis after the patriarch's 85th birthday ends in his death." },
-  { id: 661374, title: 'Glass Onion', overview: 'A detective joins a tech billionaire and his friends for a murder-mystery weekend on a private Greek island.' },
-  { id: 290250, title: 'The Nice Guys', overview: 'A mismatched pair of private eyes investigate a missing girl in 1970s Los Angeles.' },
-  { id: 346648, title: 'Paddington 2', overview: 'Paddington takes on odd jobs to buy a gift for his aunt, until the gift is stolen.' },
-  { id: 146233, title: 'Prisoners', overview: 'When two girls go missing, a desperate father takes matters into his own hands.' },
+  { id: '546554', title: 'Knives Out', overview: "A detective untangles a wealthy family's alibis after the patriarch's 85th birthday ends in his death." },
+  { id: '661374', title: 'Glass Onion', overview: 'A detective joins a tech billionaire and his friends for a murder-mystery weekend on a private Greek island.' },
+  { id: '290250', title: 'The Nice Guys', overview: 'A mismatched pair of private eyes investigate a missing girl in 1970s Los Angeles.' },
+  { id: '346648', title: 'Paddington 2', overview: 'Paddington takes on odd jobs to buy a gift for his aunt, until the gift is stolen.' },
+  { id: '146233', title: 'Prisoners', overview: 'When two girls go missing, a desperate father takes matters into his own hands.' },
 ];
 
 /**
@@ -431,7 +421,8 @@ const MOCK_MOVIES = [
  * Waits 0.3 s like a real network trip, then:
  *   POST /recommend        -> makes a fake job and returns its ID
  *   GET  .../status        -> "running" the first time, "completed" after that
- *   GET  .../results       -> the five MOCK_MOVIES with made-up scores
+ *   GET  .../results       -> {top_pick, alternates} built from MOCK_MOVIES,
+ *                             with a made-up score per person and their average
  * @param {string} method 'GET' or 'POST'
  * @param {string} path the endpoint
  * @param {object} [body] data sent with a POST
@@ -441,7 +432,7 @@ async function mockApi(method, path, body) {
   await sleep(300);
   if (method === 'POST') {
     const id = `mock-${Object.keys(mockJobs).length + 1}`;
-    mockJobs[id] = { polls: 0, query: body.query_text };
+    mockJobs[id] = { polls: 0, queries: body.query_texts, topK: body.top_k };
     return { job_id: id, status: 'pending' };
   }
   const id = path.split('/')[2];
@@ -450,13 +441,16 @@ async function mockApi(method, path, body) {
     job.polls += 1;
     return { job_id: id, status: job.polls >= 2 ? 'completed' : 'running', error: null };
   }
-  // Different queries get slightly different rankings so group merging is visible.
-  const seed = job.query.length;
-  return {
-    results: MOCK_MOVIES.map((m, i) => ({ ...m, score: Math.max(0.5, 0.95 - ((i + seed) % 5) * 0.06) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, body ? body.top_k : TOP_K),
-  };
+  // Each person's text gives slightly different scores so the fit bars differ.
+  const ranked = MOCK_MOVIES.map((m, i) => {
+    const individual_scores = job.queries.map((q, p) => ({
+      participant_index: p,
+      score: Math.max(0.5, 0.95 - ((i + q.length) % 5) * 0.06),
+    }));
+    return { ...m, group_score: avg(individual_scores.map((s) => s.score)), individual_scores };
+  }).sort((a, b) => b.group_score - a.group_score).slice(0, job.topK);
+  const [top_pick, ...alternates] = ranked;
+  return { top_pick, alternates };
 }
 
 /**
@@ -647,7 +641,7 @@ function logWatch() {
   if (USE_MOCK) { console.log('watch clicked', state.results.movie.title); return; }
   fetch('/events/watch', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_ids: state.jobIds, movie_id: state.results.movie.id }),
+    body: JSON.stringify({ job_id: state.jobId, movie_id: state.results.movie.id }),
   }).catch(() => {});
 }
 
