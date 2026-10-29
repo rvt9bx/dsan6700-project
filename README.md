@@ -2,8 +2,6 @@
 
 A package for solo or group semantic movie recommendations.
 
-Live on Jetstream2: <http://team01-app.cis240466.projects.jetstream-cloud.org:8080> (API docs at `/docs`).
-
 ## Running with Docker
 
 The app runs as three containers, defined in `compose.yml`:
