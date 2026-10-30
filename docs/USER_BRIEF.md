@@ -27,5 +27,6 @@ Please share your thoughts on:
 
 - How easy the application is to understand and use
 - Whether you would actually use it to choose a movie and why or why not
-- Which additional features would be useful
+- Additional UI features
+- Additional search/recommendation features
 - Any problems you encounter, including slow response times or recommendations that don’t match your request
