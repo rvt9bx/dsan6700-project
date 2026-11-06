@@ -51,5 +51,11 @@ class Settings(BaseSettings):
         description="Directory where static movie list lives.",
     )
 
+    # monitoring settings
+    log_dir: Path = Field(
+        default=Path("logs"),
+        description="Directory for usage event logs (a volume in Docker)",
+    )
+
 
 settings = Settings()

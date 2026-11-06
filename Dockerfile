@@ -12,6 +12,7 @@
 #   the vectors     Qdrant, the official image in its own container on the internal Compose network; only
 #                   the app's port 8080 is published, never Qdrant's 6333
 #   the movie data  the Parquet file, mounted read-only at /data; not in git and not in the image
+#   the usage logs  events.jsonl, written by the app to the /logs volume
 #   configuration   the environment at run time (.env and compose.yml), never copied into the image
 FROM python:3.12-slim
 
@@ -27,7 +28,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /usr/local/bin/uv
 # Non-root user to run the service. The volume mount points must exist, owned by that user, before
 # volumes are mounted on them: otherwise Docker creates them owned by root and writes fail
 RUN useradd --create-home --uid 1000 app \
-    && mkdir -p /models /data && chown app:app /models /data
+    && mkdir -p /models /data /logs && chown app:app /models /data /logs
 
 WORKDIR /app
 

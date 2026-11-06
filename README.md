@@ -29,6 +29,21 @@ Parquet is not in git; see `src/movierec/datacollection/README.md` for how it wa
 Configuration is read from the environment. Copy `.env.example` to `.env` to override defaults; `compose.yml` sets
 `QDRANT_URL`, `EMBED_CACHE_DIR` and `MOVIES_PATH` for the containers.
 
+## Usage logs
+
+The app appends usage events to `events.jsonl`, one JSON object per line, in `LOG_DIR` (`logs/` when run locally, the
+`logs` volume in Docker). Each tap of the "We're watching ..." button is recorded as
+
+```json
+{"ts": "2026-11-06T20:15:00.123456+00:00", "event": "watch_click", "job_id": "...", "movie_id": "546554"}
+```
+
+To count the clicks on a running deployment:
+
+```bash
+docker compose exec app grep -c '"watch_click"' /logs/events.jsonl
+```
+
 ## Deploying on Jetstream2
 
 On the instance (an `m3.small` is enough):
