@@ -7,7 +7,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from movierec.api.schemas import RecommendationRequest
+from movierec.api.events import record_event
+from movierec.api.schemas import RecommendationRequest, WatchEvent
 from movierec.retrieval.search import (
     health_check,
     ready_check,
@@ -84,6 +85,12 @@ def recommendation_results(job_id: str):
         raise HTTPException(status_code=500, detail=job["error"] or "Job failed")
 
     return job["result"]
+
+
+@app.post("/events/watch", status_code=204)
+def log_watch(event: WatchEvent) -> None:
+    # job_id is not checked against jobs: they are lost on restart, the click is still real
+    record_event("watch_click", job_id=event.job_id, movie_id=event.movie_id)
 
 
 @app.get("/movies/search")

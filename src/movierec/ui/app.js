@@ -635,7 +635,7 @@ $('#pick-text').addEventListener('input', (e) => {
 /**
  * Records which movie the group chose when they tap "We're watching ...".
  * In mock mode it only prints to the browser console.
- * TODO: agree on an endpoint with the team for click tracking (monitoring lane).
+ * The server appends each click to its events log; see "Usage logs" in the README.
  */
 function logWatch() {
   if (USE_MOCK) { console.log('watch clicked', state.results.movie.title); return; }
