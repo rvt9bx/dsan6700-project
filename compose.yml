@@ -12,11 +12,14 @@ services:
     env_file:
       - path: .env
         required: false                         # a fresh clone runs on defaults; copy .env.example to .env to override
-    environment: *movierec-env
+    environment:
+      <<: *movierec-env
+      LOG_DIR: /logs
     ports:
       - "8080:8080"                             # the only port we publish
     volumes:
       - models:/models                          # embedding weights, downloaded once, shared with ingest
+      - logs:/logs                              # usage events survive restarts and rebuilds
     depends_on:
       qdrant:
         condition: service_healthy
@@ -54,4 +57,5 @@ services:
 
 volumes:
   models:
+  logs:
   qdrant-storage:

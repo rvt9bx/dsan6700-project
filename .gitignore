@@ -151,3 +151,6 @@ dmypy.json
 
 # Model cache
 models/
+
+# Usage event logs
+logs/

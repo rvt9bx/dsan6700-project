@@ -14,6 +14,19 @@ class RecommendationRequest(BaseModel):
     )
 
 
+class WatchEvent(BaseModel):
+    job_id: str = Field(
+        ...,
+        max_length=64,
+        description="The recommendation job the results came from",
+    )
+    movie_id: str = Field(
+        ...,
+        max_length=32,
+        description="TMDB id of the movie the group chose",
+    )
+
+
 class ParticipantScore(BaseModel):
     participant_index: int = Field(
         ...,
