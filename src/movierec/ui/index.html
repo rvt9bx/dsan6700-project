@@ -74,16 +74,18 @@
         </div>
       </div>
       <div id="name-list"><!-- filled by renderNames() --></div>
+      <p class="error" id="name-error" role="alert" hidden></p>
       <p class="muted small">Names are optional. Each person gets their own color.</p>
     </div>
     <div class="spacer"></div>
     <div class="actions">
-      <button class="btn" data-action="begin">Start <span aria-hidden="true">&rarr;</span></button>
+      <button class="btn" data-action="begin" id="begin-btn">Start <span aria-hidden="true">&rarr;</span></button>
     </div>
   </section>
 
   <!-- 3. HAND-OFF -->
   <section id="screen-handoff" class="screen narrow center" hidden>
+    <button class="back" data-action="setup">&larr; Change setup</button>
     <div id="handoff-av"><!-- filled by startTurn() --></div>
     <h1>Pass it to <span class="js-cur-name"></span></h1>
     <p class="sub" id="handoff-sub"></p>
@@ -91,11 +93,13 @@
     <div class="actions">
       <button class="btn" data-action="ready"><span>I'm <span class="js-cur-name"></span>, show my turn</span></button>
     </div>
+    <div class="swap-box" id="handoff-swap" hidden><!-- everyone else still waiting; filled by startTurn() --></div>
   </section>
 
   <!-- 4. INPUT -->
   <section id="screen-input" class="screen input" hidden>
     <div class="card write">
+      <button class="back" data-action="setup">&larr; Change setup</button>
       <div class="write-head">
         <span id="input-av"><!-- filled by showInput() --></span>
         <div><h1 id="input-title"></h1><p class="muted" id="input-sub"></p></div>
@@ -107,7 +111,8 @@
         <div class="pin big" id="my-pin"></div>
       </div>
       <label for="pick-text">What are you in the mood for?</label>
-      <textarea id="pick-text" class="paper" rows="5"></textarea>
+      <textarea id="pick-text" class="paper" rows="5" maxlength="300"></textarea>
+      <p id="pick-count" class="muted small count" aria-live="polite" hidden></p>
       <p id="pick-error" class="error" hidden>Write a few words first, even just a movie you love.</p>
       <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
       <div class="spacer"></div>
@@ -173,6 +178,11 @@
       <div class="spacer"></div>
       <div class="res-ctas">
         <button class="btn" data-action="watch" id="watch-btn">We're watching this</button>
+        <p class="watch-done" id="watch-done" role="status" hidden>
+          Have a great movie night.
+          <a id="watch-link" href="#" target="_blank" rel="noopener">See where to stream it &rarr;</a>
+        </p>
+        <button class="btn ghost" data-action="another" id="another-btn">Show another pick</button>
         <button class="btn ghost" data-action="edit">Edit our picks</button>
         <button class="link" data-action="restart">New movie night</button>
       </div>

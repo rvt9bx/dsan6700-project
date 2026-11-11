@@ -56,14 +56,20 @@ function freshState() {
     mode: 'group',            // 'solo' | 'group'
     size: 3,                  // number of people (2-6) in group mode
     names: ['', '', '', '', '', ''],
-    texts: [],                // texts[i] = person i's description
-    turn: 0,                  // whose turn it is
+    texts: [],                // texts[i] = person i's description (kept as they type)
+    sealed: [],               // sealed[i] = true once person i has sealed their pick
+    current: 0,               // who is writing now (any order, see nextUnsealed)
     jobId: null,              // the job the API is running for this group
-    results: null,            // response from /results
+    results: null,            // {movies, members}, built by toResults()
+    shown: 0,                 // which of results.movies is in front (0 = top pick)
+    watchedId: null,          // the movie the group said they're watching
     revealed: -1,             // which person's pick is open on results
   };
 }
 let state = freshState();
+
+const MAX_NAME = 20;          // characters allowed in a name
+const MAX_PICK = 300;         // characters allowed in a description
 
 // Shortcuts: $('#id') finds one element on the page, $$('.class') finds all matches.
 const $ = (sel) => document.querySelector(sel);
@@ -88,6 +94,26 @@ function people() {
       text: state.texts[i] || '',
     };
   });
+}
+
+/** How many people (in the current group) have sealed their pick. */
+function sealedCount() {
+  return people().filter((p) => state.sealed[p.i]).length;
+}
+
+/**
+ * Finds who should write next: the first person after `from` (wrapping around)
+ * who hasn't sealed yet, never `from` itself.
+ * @param {number} [from] start after this person; -1 starts from person 1
+ * @returns {number} their index, or -1 when everyone has sealed
+ */
+function nextUnsealed(from = -1) {
+  const n = people().length;
+  for (let k = 1; k <= n; k++) {
+    const i = (from + k) % n;
+    if (i !== from && !state.sealed[i]) return i;
+  }
+  return -1;
 }
 
 // ---------- 2. SCREEN SWITCHING + TOP BAR ----------
@@ -115,7 +141,7 @@ function renderNav(screen) {
     return;
   }
   const step = screen === 'start' ? 0 : (screen === 'loading' || screen === 'results') ? 2 : 1;
-  const picks = state.mode === 'solo' ? 'Your pick' : `Picks · ${Math.min(state.turn + 1, state.size)} of ${state.size}`;
+  const picks = state.mode === 'solo' ? 'Your pick' : `Picks · ${Math.min(sealedCount() + 1, state.size)} of ${state.size}`;
   const labels = ['Setup', step === 1 ? picks : 'Picks', 'Results'];
   $('#nav').innerHTML = `<div class="steps-nav">${labels.map((label, k) => {
     const cls = k < step ? 'done' : k === step ? 'on' : '';
@@ -133,27 +159,86 @@ function renderSetup() {
   $$('.mode').forEach((b) => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
   $('#group-setup').hidden = state.mode === 'solo';
   $('#size-label').textContent = state.size;
+  $('#name-error').hidden = true;
+  // Coming back to setup mid-picks keeps everyone's sealed picks.
+  $('#begin-btn').firstChild.textContent = sealedCount() > 0 ? 'Continue ' : 'Start ';
   renderNames();
 }
 
 /**
  * Draws one name box (with a numbered colored dot) per person. Typing in a box
- * saves the name into state right away.
+ * saves the name into state right away. Each row has a remove button (while
+ * there are more than two people), and people who already sealed are marked.
  */
 function renderNames() {
   const list = $('#name-list');
   list.innerHTML = '';
+  const canRemove = state.size > 2;
   people().forEach((p) => {
     const row = document.createElement('div');
     row.className = 'name-row';
     row.innerHTML = `
       <span class="dot" style="background:${p.color}" aria-hidden="true">${p.i + 1}</span>
-      <input aria-label="Person ${p.i + 1}" placeholder="Person ${p.i + 1}">`;
+      <input aria-label="Person ${p.i + 1}" placeholder="Person ${p.i + 1}" maxlength="${MAX_NAME}">
+      ${state.sealed[p.i] ? '<span class="status st-sealed">Sealed</span>' : ''}
+      ${canRemove ? `<button class="remove" data-remove="${p.i}" aria-label="Remove ${escapeHtml(p.name)}">&times;</button>` : ''}`;
     const input = row.querySelector('input');
     input.value = state.names[p.i];
-    input.addEventListener('input', (e) => { state.names[p.i] = e.target.value; });
+    input.addEventListener('input', (e) => {
+      state.names[p.i] = e.target.value;
+      $('#name-error').hidden = true;
+    });
     list.appendChild(row);
   });
+}
+
+/**
+ * Removes one person from the group, with their name and any pick they wrote.
+ * Everyone after them moves up one place (and takes the next color).
+ * @param {number} i the person to remove
+ */
+function removePerson(i) {
+  state.names.splice(i, 1);
+  state.names.push('');
+  state.texts.splice(i, 1);
+  state.sealed.splice(i, 1);
+  state.size -= 1;
+  renderSetup();
+}
+
+/**
+ * Checks that no two people typed the same name, so the results can tell them
+ * apart. Blank names are fine: they become "Person N".
+ * @returns {boolean} true when the names are OK; otherwise shows an error
+ */
+function namesOk() {
+  if (state.mode === 'solo') return true;
+  const seen = new Set();
+  for (const p of people()) {
+    const key = state.names[p.i].trim().toLowerCase();
+    if (!key) continue;
+    if (seen.has(key)) {
+      $('#name-error').textContent = "Two people can't have the same name.";
+      $('#name-error').hidden = false;
+      return false;
+    }
+    seen.add(key);
+  }
+  return true;
+}
+
+/**
+ * Runs when someone taps Start (or Continue) on the setup screen. Starts with
+ * the first person who hasn't sealed; if everyone already has, goes straight
+ * to the results.
+ */
+function beginPicks() {
+  if (!namesOk()) return;
+  if (state.mode === 'solo') { state.current = 0; return startTurn(); }
+  const next = nextUnsealed();
+  if (next === -1) return submitPicks();
+  state.current = next;
+  startTurn();
 }
 
 // ---------- 4. TURNS ----------
@@ -165,7 +250,7 @@ function renderNames() {
  */
 function renderEnvelopes() {
   const all = people();
-  const statusOf = (p) => (p.i < state.turn ? 'sealed' : p.i === state.turn ? 'current' : 'waiting');
+  const statusOf = (p) => (state.sealed[p.i] ? 'sealed' : p.i === state.current ? 'current' : 'waiting');
   const envHtml = all.map((p) => `<div class="env-wrap">
       <div class="env ${statusOf(p)}" style="--c:${p.color}"></div>
       <span>${escapeHtml(p.name)}</span></div>`).join('');
@@ -183,16 +268,23 @@ function renderEnvelopes() {
 /**
  * Starts the current person's turn. In group mode it shows the "Pass it to ..."
  * screen first; in solo mode it goes straight to the input screen.
+ * The hand-off screen also lists everyone else still waiting, so whoever is
+ * actually holding the device can take the turn instead.
  */
 function startTurn() {
   if (state.mode === 'solo') return showInput();
   renderEnvelopes();
-  const cur = people()[state.turn];
+  const cur = people()[state.current];
+  const done = sealedCount();
   $('#handoff-av').innerHTML = avatar(cur, 'xl');
   $$('.js-cur-name').forEach((el) => { el.textContent = cur.name; });
-  $('#handoff-sub').textContent = state.turn === 0
+  $('#handoff-sub').textContent = done === 0
     ? 'Everyone else, look away. Picks stay sealed until the end.'
-    : `${state.turn} sealed so far. Nobody sees a pick until everyone has written one.`;
+    : `${done} sealed so far. Nobody sees a pick until everyone has written one.`;
+  const others = people().filter((p) => p.i !== state.current && !state.sealed[p.i]);
+  $('#handoff-swap').hidden = others.length === 0;
+  $('#handoff-swap').innerHTML = `<p class="muted small">Not ${escapeHtml(cur.name)}? Tap whoever has the device.</p>
+    <div class="swap-list">${others.map((p) => `<button class="swap" data-current="${p.i}">${avatar(p)}${escapeHtml(p.name)}</button>`).join('')}</div>`;
   show('handoff');
 }
 
@@ -203,19 +295,21 @@ function startTurn() {
  */
 function showInput() {
   const all = people();
-  const cur = all[state.turn];
+  const cur = all[state.current];
   const solo = state.mode === 'solo';
+  const next = solo ? -1 : nextUnsealed(state.current);
   $('#screen-input').style.setProperty('--c', cur.color);
   $('#input-av').innerHTML = avatar(cur, 'lg');
   $('#input-title').textContent = solo ? 'Your pick' : `${cur.name}'s turn`;
   $('#input-sub').textContent = solo ? 'Describe the movie you want tonight.' : 'Everyone else, look away.';
   $('#pick-text').value = cur.text;
-  $('#pick-text').placeholder = PLACEHOLDERS[state.turn % PLACEHOLDERS.length];
+  $('#pick-text').placeholder = PLACEHOLDERS[state.current % PLACEHOLDERS.length];
   $('#pick-error').hidden = true;
+  renderCount();
   $('#seal-btn').textContent = solo ? 'Find my movie' : 'Seal my pick';
   $('#next-hint').textContent = solo ? ''
-    : state.turn === all.length - 1 ? 'Last pick. Then everyone opens them together.'
-    : `Then pass it to ${all[state.turn + 1].name}`;
+    : next === -1 ? 'Last pick. Then everyone opens them together.'
+    : `Then pass it to ${all[next].name}`;
   $('#input-side').hidden = solo;
   $('#input-envs').hidden = solo;
   renderEnvelopes();
@@ -228,14 +322,39 @@ function showInput() {
 }
 
 /**
- * Shows three example descriptions near the text box. Tapping one fills the
- * box with it. Each turn gets a different three (and not the one already
- * shown as the text box's placeholder). Used while the mood map is paused.
+ * Shows three example descriptions near the text box. Tapping one adds it to
+ * the box. Each turn gets a different three (and not the one already shown as
+ * the text box's placeholder). Used while the mood map is paused.
  */
 function renderIdeas() {
-  const ideas = [1, 2, 3].map((k) => (state.turn + k) % PLACEHOLDERS.length);
+  const ideas = [1, 2, 3].map((k) => (state.current + k) % PLACEHOLDERS.length);
   $('#ideas').innerHTML = `<span class="muted">Need an idea?</span>
     ${ideas.map((n) => `<button class="idea" data-idea="${n}"><b aria-hidden="true">+</b>${escapeHtml(PLACEHOLDERS[n])}</button>`).join('')}`;
+}
+
+/**
+ * Adds an idea to whatever the person already wrote, instead of replacing it:
+ * "A mystery" + "A heist that's funny" -> "A mystery, a heist that's funny".
+ * @param {string} idea the suggestion they tapped
+ */
+function addIdea(idea) {
+  const box = $('#pick-text');
+  const typed = box.value.trimEnd();
+  const joined = !typed ? idea
+    : /[.!?]$/.test(typed) ? `${typed} ${idea}`
+    : `${typed.replace(/,$/, '')}, ${idea[0].toLowerCase()}${idea.slice(1)}`;
+  box.value = joined.slice(0, MAX_PICK);
+  state.texts[state.current] = box.value;
+  $('#pick-error').hidden = true;
+  renderCount();
+  box.focus();
+}
+
+/** Shows how many characters are left once the description gets long. */
+function renderCount() {
+  const left = MAX_PICK - $('#pick-text').value.length;
+  $('#pick-count').textContent = `${left} characters left`;
+  $('#pick-count').hidden = left > 60;
 }
 
 // Live pin. Placeholder logic: keyword counts.
@@ -283,23 +402,29 @@ function movePin(text, color) {
 /**
  * Runs when someone taps "Seal my pick". Saves their text (or shows an error if
  * it is empty), shows the "Sealed" screen for a moment, then moves on to the
- * next person, or sends everyone's picks to the API after the last person.
+ * next person who hasn't sealed, or sends everyone's picks to the API once
+ * everyone has.
  */
 function seal() {
   const text = $('#pick-text').value.trim();
   if (!text) { $('#pick-error').hidden = false; return; }
-  state.texts[state.turn] = text;
+  state.texts[state.current] = text;
 
   if (state.mode === 'solo') return submitPicks();
 
-  // Sealed screen, then on to the next person (or submit if last).
-  const cur = people()[state.turn];
+  // Sealed screen, then on to the next person (or submit if everyone is done).
+  const cur = people()[state.current];
+  state.sealed[state.current] = true;
   $('#big-envelope').style.setProperty('--c', cur.color);
-  $('#sealed-sub').textContent = `${cur.name}'s pick is in. ${state.turn + 1} of ${state.size} sealed.`;
-  state.turn += 1;
+  $('#sealed-sub').textContent = `${cur.name}'s pick is in. ${sealedCount()} of ${state.size} sealed.`;
+  const next = nextUnsealed(state.current);
   renderEnvelopes();
   show('sealed');
-  setTimeout(() => (state.turn >= state.size ? submitPicks() : startTurn()), 1300);
+  setTimeout(() => {
+    if (next === -1) return submitPicks();
+    state.current = next;
+    startTurn();
+  }, 1300);
 }
 
 // ---------- 5. API (async job pattern) ----------
@@ -307,13 +432,14 @@ function seal() {
 //   POST /recommend              body {query_texts: [...], top_k}  -> {job_id, status}
 //   GET  /recommend/{id}/status  -> {job_id, status: "pending"|"running"|"completed"|"failed", error}
 //   GET  /recommend/{id}/results -> {top_pick, alternates}
-//     each movie: {id, title, overview, group_score,
+//     each movie: {id, title, overview, year, genres, poster_path, group_score,
 //                  individual_scores: [{participant_index, score}]}
 //
 // The whole group goes in ONE job. The backend combines everyone's picks
 // and sends back the group's top pick plus a few runners-up.
 
-const TOP_K = 5;
+// Movies to ask for: the top pick plus runners-up to browse with "Show another pick".
+const TOP_K = 8;
 
 /**
  * Sends everyone's picks to the API and shows the results. Steps:
@@ -339,6 +465,8 @@ async function submitPicks() {
     setLoadStep(2);
     const res = await api('GET', `/recommend/${job_id}/results`);
     state.results = toResults(res, members);
+    state.shown = 0;
+    state.watchedId = null;
     renderResults();
     show('results');
   } catch (err) {
@@ -364,24 +492,22 @@ async function waitForJob(id) {
 }
 
 /**
- * Turns the API's {top_pick, alternates} reply into what the results screen draws.
+ * Turns the API's {top_pick, alternates} reply into what the results screen draws:
+ * every movie in ranked order (top pick first), each with a fit per person.
  * individual_scores is matched to people by participant_index (0 = first person).
- * Anyone with no score for the top pick gets null, shown as a dash.
+ * Anyone with no score for a movie gets null, shown as a dash.
  * @param {object} res the /results reply
  * @param {object[]} members the people, from people()
- * @returns {object} {movie, group, alternates, members} for the results screen
+ * @returns {object} {movies, members} for the results screen
  */
 function toResults(res, members) {
-  const top = res.top_pick;
-  const scoreFor = (i) => (top.individual_scores || []).find((s) => s.participant_index === i)?.score ?? null;
+  const scoreFor = (m, i) => (m.individual_scores || []).find((s) => s.participant_index === i)?.score ?? null;
   return {
-    movie: top,
-    group: top.group_score,
-    alternates: (res.alternates || []).slice(0, 2).map((a) => ({
-      title: a.title, year: a.year, poster_path: a.poster_path, group_fit: a.group_score,
+    movies: [res.top_pick, ...(res.alternates || [])].map((m) => ({
+      ...m, fits: members.map((_, i) => scoreFor(m, i)),
     })),
     // x, y still come from the front end until the API sends them
-    members: members.map((p, i) => ({ name: p.name, fit: scoreFor(i), ...placeFromText(p.text) })),
+    members: members.map((p) => ({ name: p.name, ...placeFromText(p.text) })),
   };
 }
 
@@ -468,14 +594,28 @@ function setLoadStep(k) {
 // ---------- 6. RESULTS ----------
 
 /**
- * Draws the results screen from state.results: the poster stack (the pick in
- * front, runners-up behind it) or the mood map, the movie's title, details and
- * summary, the group-fit ring, everyone's fit bars, and the "also close" movies.
+ * Draws the results screen from state.results for the movie in front
+ * (state.shown): the poster stack (that movie in front, the next ones behind
+ * it) or the mood map, its title, details and summary, the group-fit ring,
+ * everyone's fit bars, and the "also close" movies. Tapping any other movie
+ * (in the list or behind the poster) brings it to the front.
  */
 function renderResults() {
-  const { movie, group, alternates, members } = state.results;
+  const { movies } = state.results;
+  const movie = movies[state.shown];
+  const group = movie.group_score;
+  const members = state.results.members.map((m, i) => ({ ...m, fit: movie.fits[i] }));
+  // The top pick first (when another movie is in front), then the ones after this one.
+  const ranked = movies.map((m, idx) => ({ ...m, idx }));
+  const others = [
+    ...(state.shown === 0 ? [] : [ranked[0]]),
+    ...ranked.slice(state.shown + 1),
+    ...ranked.slice(1, state.shown),
+  ].slice(0, 4);
+  const alternates = others.slice(0, 2);
   const all = people();
   const solo = state.mode === 'solo';
+  const isTop = state.shown === 0;
 
   // Map: one area + pin per person, poster at the average position.
   const cx = avg(members.map((m) => m.x));
@@ -490,12 +630,13 @@ function renderResults() {
 
   // While the map is paused: the pick in front, up to two runners-up fanned out behind.
   $('#results-poster').hidden = SHOW_MOOD_MAP;
+  // The posters behind are for mouse and touch; the "Also close" buttons below do the same for keyboards.
   $('#results-poster').innerHTML = `
-    ${alternates.map((a, k) => posterHtml(a, `back b${k + 1}`)).join('')}
-    <span class="ribbon">${solo ? 'Your pick' : "Tonight's pick"}</span>
+    ${alternates.map((a, k) => posterHtml(a, `back b${k + 1}`, `data-show="${a.idx}" aria-hidden="true"`)).join('')}
+    <span class="ribbon">${!isTop ? `Pick ${state.shown + 1} of ${movies.length}` : solo ? 'Your pick' : "Tonight's pick"}</span>
     ${posterHtml(movie, 'front')}`;
 
-  $('#results-title').textContent = solo ? 'Your match' : 'Your overlap';
+  $('#results-title').textContent = !isTop ? 'Also close' : solo ? 'Your match' : 'Your overlap';
   $('#movie-title').textContent = movie.title;
   // The API only sends id, title, score, overview today; the rest shows up when it's added.
   const meta = [
@@ -508,7 +649,8 @@ function renderResults() {
   $('#movie-meta').hidden = meta.length === 0;
   $('#movie-overview').textContent = movie.overview || '';
   $('#movie-overview').hidden = !movie.overview;
-  $('#watch-btn').textContent = `We're watching ${movie.title}`;
+  renderWatch(movie);
+  $('#another-btn').hidden = movies.length < 2;
 
   $('#score-ring').innerHTML = ringSvg(group, solo ? 'match' : 'group fit');
   $('#score-label').textContent = solo ? 'Match' : 'Group fit';
@@ -521,10 +663,33 @@ function renderResults() {
 
   renderFitBars(members, all, true);
 
-  $('#alternates').innerHTML = alternates.length
-    ? `<p class="eyebrow quiet">Also close</p><div class="also">${alternates.map((a) => `
-        <div class="alt">${posterHtml(a, 'mini')}<span>${escapeHtml(a.title)}<small>${pct(a.group_fit)} ${solo ? 'match' : 'group fit'}</small></span></div>`).join('')}</div>`
+  $('#alternates').innerHTML = others.length
+    ? `<p class="eyebrow quiet">${isTop ? 'Also close' : 'More picks'} <span class="hint">· tap one to see it</span></p><div class="also">${others.map((a) => `
+        <button class="alt" data-show="${a.idx}">${posterHtml(a, 'mini')}<span>${escapeHtml(a.title)}<small>${a.idx === 0 ? `${solo ? 'Your' : "Tonight's"} pick · ` : ''}${pct(a.group_score)} ${solo ? 'match' : 'group fit'}</small></span></button>`).join('')}</div>`
     : '';
+}
+
+/**
+ * Brings one of the results to the front and redraws the screen for it.
+ * @param {number} idx its place in state.results.movies (0 = top pick)
+ */
+function showMovie(idx) {
+  state.shown = idx;
+  renderResults();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/**
+ * Sets up the "We're watching ..." button for this movie. Once the group has
+ * tapped it, the button says so and a link shows where to stream the movie.
+ * @param {object} movie the movie in front
+ */
+function renderWatch(movie) {
+  const watched = state.watchedId === movie.id;
+  $('#watch-btn').textContent = watched ? `Enjoy ${movie.title}!` : `We're watching ${movie.title}`;
+  $('#watch-btn').disabled = watched;
+  $('#watch-done').hidden = !watched;
+  $('#watch-link').href = `https://www.themoviedb.org/movie/${encodeURIComponent(movie.id)}/watch`;
 }
 
 /**
@@ -554,18 +719,19 @@ function renderFitBars(members, all, animate = false) {
  * otherwise draws a colored placeholder with the title (and year, if known).
  * @param {{title: string, year?: number, poster_path?: string}} movie
  * @param {string} [cls] extra classes, e.g. 'front', 'back b1', 'mini'
+ * @param {string} [attrs] extra attributes, e.g. 'data-show="2"'
  * @returns {string} HTML for the poster
  */
-function posterHtml(movie, cls = '') {
+function posterHtml(movie, cls = '', attrs = '') {
   const title = escapeHtml(movie.title);
   if (movie.poster_path) {
-    return `<img class="poster ${cls}" src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${title} poster">`;
+    return `<img class="poster ${cls}" ${attrs} src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${title} poster">`;
   }
   const [top, bottom, ink] = POSTER_TONES[hashText(movie.title) % POSTER_TONES.length];
   // Shrink the title for long words so a word like "PADDINGTON" never breaks in half.
   const longest = Math.max(...String(movie.title).split(/\s+/).map((w) => w.length));
   const fit = Math.min(1, 7.5 / longest).toFixed(2);
-  return `<div class="poster ${cls}" style="--p1:${top};--p2:${bottom};--pt:${ink};--fit:${fit}" role="img" aria-label="${title}">
+  return `<div class="poster ${cls}" ${attrs} style="--p1:${top};--p2:${bottom};--pt:${ink};--fit:${fit}" role="img" aria-label="${title}">
     ${movie.year ? `<span class="yr">${movie.year}</span>` : ''}<span class="t">${title}</span></div>`;
 }
 
@@ -592,56 +758,75 @@ document.addEventListener('click', (e) => {
   if (modeBtn) { state.mode = modeBtn.dataset.mode; renderSetup(); return; }
 
   const ideaBtn = e.target.closest('[data-idea]');
-  if (ideaBtn) {
-    $('#pick-text').value = PLACEHOLDERS[Number(ideaBtn.dataset.idea)];
-    $('#pick-error').hidden = true;
-    $('#pick-text').focus();
-    return;
-  }
+  if (ideaBtn) { addIdea(PLACEHOLDERS[Number(ideaBtn.dataset.idea)]); return; }
+
+  const removeBtn = e.target.closest('[data-remove]');
+  if (removeBtn) { removePerson(Number(removeBtn.dataset.remove)); return; }
+
+  const swapBtn = e.target.closest('[data-current]');
+  if (swapBtn) { state.current = Number(swapBtn.dataset.current); startTurn(); return; }
+
+  const showBtn = e.target.closest('[data-show]');
+  if (showBtn) { showMovie(Number(showBtn.dataset.show)); return; }
 
   const fitRow = e.target.closest('.fit-row');
   if (fitRow) {
     const i = Number(fitRow.dataset.person);
+    const { fits } = state.results.movies[state.shown];
     state.revealed = state.revealed === i ? -1 : i;
-    renderFitBars(state.results.members, people());
+    renderFitBars(state.results.members.map((m, k) => ({ ...m, fit: fits[k] })), people());
     return;
   }
 
   const action = e.target.closest('[data-action]')?.dataset.action;
   switch (action) {
     case 'go-intro': show('intro'); break;
-    case 'start-group': state.mode = 'group'; renderSetup(); show('start'); break;
-    case 'start-solo': state.mode = 'solo'; state.texts = []; state.turn = 0; startTurn(); break;
-    case 'size-down': state.size = Math.max(2, state.size - 1); renderSetup(); break;
+    case 'start-group': state.mode = 'group'; state.texts = []; state.sealed = []; renderSetup(); show('start'); break;
+    case 'start-solo': state.mode = 'solo'; state.texts = []; state.sealed = []; state.current = 0; startTurn(); break;
+    case 'setup': renderSetup(); show('start'); break;
+    case 'size-down':
+      // The person dropped off the end takes their pick with them.
+      if (state.size > 2) { state.texts[state.size - 1] = ''; state.sealed[state.size - 1] = false; }
+      state.size = Math.max(2, state.size - 1); renderSetup(); break;
     case 'size-up': state.size = Math.min(6, state.size + 1); renderSetup(); break;
-    case 'begin': state.texts = []; state.turn = 0; startTurn(); break;
+    case 'begin': beginPicks(); break;
     case 'ready': showInput(); break;
     case 'seal': seal(); break;
     case 'retry': submitPicks(); break;
-    case 'edit': state.turn = 0; state.revealed = -1; startTurn(); break;
+    case 'edit': state.sealed = []; state.current = 0; state.revealed = -1; startTurn(); break;
+    case 'another': showMovie((state.shown + 1) % state.results.movies.length); break;
     case 'watch': logWatch(); break;
-    case 'restart': state = freshState(); show('intro'); break;
+    case 'restart':
+      if (state.texts.some(Boolean) && !window.confirm("Start a new movie night? Everyone's picks will be cleared.")) break;
+      state = freshState(); show('intro'); break;
   }
 });
 
-// Every keystroke in the text box clears the "write something" error (and
-// moves the pin, when the mood map is on).
+// Every keystroke in the text box saves the draft, clears the "write
+// something" error and updates the characters-left count (and moves the pin,
+// when the mood map is on).
 $('#pick-text').addEventListener('input', (e) => {
-  const cur = people()[state.turn];
+  const cur = people()[state.current];
+  state.texts[state.current] = e.target.value;
   if (SHOW_MOOD_MAP) movePin(e.target.value, cur.color);
   $('#pick-error').hidden = true;
+  renderCount();
 });
 
 /**
- * Records which movie the group chose when they tap "We're watching ...".
- * In mock mode it only prints to the browser console.
- * The server appends each click to its events log; see "Usage logs" in the README.
+ * Records which movie the group chose when they tap "We're watching ...", then
+ * thanks them and shows where to stream it. In mock mode it only prints to the
+ * browser console. The server appends each click to its events log; see
+ * "Usage logs" in the README.
  */
 function logWatch() {
-  if (USE_MOCK) { console.log('watch clicked', state.results.movie.title); return; }
+  const movie = state.results.movies[state.shown];
+  state.watchedId = movie.id;
+  renderWatch(movie);
+  if (USE_MOCK) { console.log('watch clicked', movie.title); return; }
   fetch('/events/watch', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_id: state.jobId, movie_id: state.results.movie.id }),
+    body: JSON.stringify({ job_id: state.jobId, movie_id: movie.id }),
   }).catch(() => {});
 }
 
