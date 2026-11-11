@@ -111,15 +111,20 @@
         <div class="pin big" id="my-pin"></div>
       </div>
       <label for="pick-text">What are you in the mood for?</label>
-      <textarea id="pick-text" class="paper" rows="5" maxlength="300"></textarea>
-      <p id="pick-count" class="muted small count" aria-live="polite" hidden></p>
+      <div class="paper-wrap">
+        <textarea id="pick-text" class="paper" rows="5" maxlength="300"></textarea>
+        <span id="pick-count" class="count" aria-hidden="true"></span>
+      </div>
       <p id="pick-error" class="error" hidden>Write a few words first, even just a movie you love.</p>
       <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
       <div class="spacer"></div>
       <div class="envelopes only-narrow" id="input-envs"></div>
       <div class="write-foot">
         <p class="foot" id="next-hint"></p>
-        <button class="btn" data-action="seal" id="seal-btn">Seal my pick</button>
+        <div class="foot-btns">
+          <button class="btn" data-action="seal" id="seal-btn">Seal my pick</button>
+          <button class="btn ghost" data-action="no-pref" id="nopref-btn">No preference</button>
+        </div>
       </div>
     </div>
     <aside class="side" id="input-side">

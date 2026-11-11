@@ -58,6 +58,7 @@ function freshState() {
     names: ['', '', '', '', '', ''],
     texts: [],                // texts[i] = person i's description (kept as they type)
     sealed: [],               // sealed[i] = true once person i has sealed their pick
+    noPref: [],               // noPref[i] = true when person i sealed "No preference" (no text)
     current: 0,               // who is writing now (any order, see nextUnsealed)
     jobId: null,              // the job the API is running for this group
     results: null,            // {movies, members}, built by toResults()
@@ -79,7 +80,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
  * Lists the people taking part, with a display name, avatar letter, color and
  * what they wrote. A blank name becomes "You" (solo) or "Person N" (group),
  * and their avatar shows "Y" or the number N.
- * @returns {{i: number, name: string, initial: string, color: string, text: string}[]}
+ * @returns {{i: number, name: string, initial: string, color: string, text: string, noPref: boolean}[]}
  */
 function people() {
   const n = state.mode === 'solo' ? 1 : state.size;
@@ -92,6 +93,7 @@ function people() {
       initial: typed ? typed[0].toUpperCase() : (state.mode === 'solo' ? 'Y' : String(i + 1)),
       color: COLORS[i],
       text: state.texts[i] || '',
+      noPref: Boolean(state.noPref[i]),
     };
   });
 }
@@ -202,6 +204,7 @@ function removePerson(i) {
   state.names.push('');
   state.texts.splice(i, 1);
   state.sealed.splice(i, 1);
+  state.noPref.splice(i, 1);
   state.size -= 1;
   renderSetup();
 }
@@ -307,6 +310,8 @@ function showInput() {
   $('#pick-error').hidden = true;
   renderCount();
   $('#seal-btn').textContent = solo ? 'Find my movie' : 'Seal my pick';
+  // Someone has to describe a movie, so the last person can't also pass.
+  $('#nopref-btn').hidden = solo || all.every((p) => p.i === state.current || (state.sealed[p.i] && p.noPref));
   $('#next-hint').textContent = solo ? ''
     : next === -1 ? 'Last pick. Then everyone opens them together.'
     : `Then pass it to ${all[next].name}`;
@@ -350,11 +355,11 @@ function addIdea(idea) {
   box.focus();
 }
 
-/** Shows how many characters are left once the description gets long. */
+/** Shows the character count in the corner of the text box, in red near the limit. */
 function renderCount() {
-  const left = MAX_PICK - $('#pick-text').value.length;
-  $('#pick-count').textContent = `${left} characters left`;
-  $('#pick-count').hidden = left > 60;
+  const used = $('#pick-text').value.length;
+  $('#pick-count').textContent = used >= MAX_PICK ? `${MAX_PICK}/${MAX_PICK} · limit reached` : `${used}/${MAX_PICK}`;
+  $('#pick-count').classList.toggle('near', MAX_PICK - used <= 30);
 }
 
 // Live pin. Placeholder logic: keyword counts.
@@ -400,15 +405,18 @@ function movePin(text, color) {
 }
 
 /**
- * Runs when someone taps "Seal my pick". Saves their text (or shows an error if
- * it is empty), shows the "Sealed" screen for a moment, then moves on to the
- * next person who hasn't sealed, or sends everyone's picks to the API once
- * everyone has.
+ * Runs when someone taps "Seal my pick" (or "No preference"). Saves their text
+ * (or shows an error if it is empty), shows the "Sealed" screen for a moment,
+ * then moves on to the next person who hasn't sealed, or sends everyone's
+ * picks to the API once everyone has.
+ * @param {boolean} [noPref] true = they have no preference: seal with no text,
+ *   and the movie is chosen from everyone else's picks
  */
-function seal() {
-  const text = $('#pick-text').value.trim();
-  if (!text) { $('#pick-error').hidden = false; return; }
+function seal(noPref = false) {
+  const text = noPref ? '' : $('#pick-text').value.trim();
+  if (!noPref && !text) { $('#pick-error').hidden = false; return; }
   state.texts[state.current] = text;
+  state.noPref[state.current] = noPref;
 
   if (state.mode === 'solo') return submitPicks();
 
@@ -416,7 +424,7 @@ function seal() {
   const cur = people()[state.current];
   state.sealed[state.current] = true;
   $('#big-envelope').style.setProperty('--c', cur.color);
-  $('#sealed-sub').textContent = `${cur.name}'s pick is in. ${sealedCount()} of ${state.size} sealed.`;
+  $('#sealed-sub').textContent = `${noPref ? `${cur.name} has no preference.` : `${cur.name}'s pick is in.`} ${sealedCount()} of ${state.size} sealed.`;
   const next = nextUnsealed(state.current);
   renderEnvelopes();
   show('sealed');
@@ -436,7 +444,8 @@ function seal() {
 //                  individual_scores: [{participant_index, score}]}
 //
 // The whole group goes in ONE job. The backend combines everyone's picks
-// and sends back the group's top pick plus a few runners-up.
+// and sends back the group's top pick plus a few runners-up. People with
+// "No preference" are left out of the job.
 
 // Movies to ask for: the top pick plus runners-up to browse with "Show another pick".
 const TOP_K = 8;
@@ -444,6 +453,7 @@ const TOP_K = 8;
 /**
  * Sends everyone's picks to the API and shows the results. Steps:
  *   1. POST /recommend once with every person's text, in person order
+ *      (skipping anyone with no preference)
  *   2. wait until the job reports "completed"
  *   3. GET the results (the backend has already combined them)
  * The loading screen's checklist advances at each step. If anything fails,
@@ -456,7 +466,7 @@ async function submitPicks() {
   try {
     const members = people();
     const { job_id } = await api('POST', '/recommend', {
-      query_texts: members.map((p) => p.text),
+      query_texts: members.filter((p) => !p.noPref).map((p) => p.text),
       top_k: TOP_K,
     });
     state.jobId = job_id;
@@ -494,20 +504,22 @@ async function waitForJob(id) {
 /**
  * Turns the API's {top_pick, alternates} reply into what the results screen draws:
  * every movie in ranked order (top pick first), each with a fit per person.
- * individual_scores is matched to people by participant_index (0 = first person).
- * Anyone with no score for a movie gets null, shown as a dash.
+ * individual_scores is matched to people by participant_index (0 = first text
+ * sent, so people with no preference are skipped when counting).
+ * Anyone with no score for a movie, or no preference, gets null.
  * @param {object} res the /results reply
  * @param {object[]} members the people, from people()
  * @returns {object} {movies, members} for the results screen
  */
 function toResults(res, members) {
   const scoreFor = (m, i) => (m.individual_scores || []).find((s) => s.participant_index === i)?.score ?? null;
+  const writers = members.filter((p) => !p.noPref);
   return {
     movies: [res.top_pick, ...(res.alternates || [])].map((m) => ({
-      ...m, fits: members.map((_, i) => scoreFor(m, i)),
+      ...m, fits: members.map((p) => (p.noPref ? null : scoreFor(m, writers.indexOf(p)))),
     })),
     // x, y still come from the front end until the API sends them
-    members: members.map((p) => ({ name: p.name, ...placeFromText(p.text) })),
+    members: members.map((p) => ({ name: p.name, noPref: p.noPref, ...placeFromText(p.text) })),
   };
 }
 
@@ -654,7 +666,7 @@ function renderResults() {
 
   $('#score-ring').innerHTML = ringSvg(group, solo ? 'match' : 'group fit');
   $('#score-label').textContent = solo ? 'Match' : 'Group fit';
-  const lowest = members.reduce((a, b) => ((b.fit ?? 0) < (a.fit ?? 0) ? b : a));
+  const lowest = members.filter((m) => !m.noPref).reduce((a, b) => ((b.fit ?? 0) < (a.fit ?? 0) ? b : a));
   $('#fair-line').textContent = solo
     ? 'Tap your bar to see what you wrote.'
     : lowest.fit == null
@@ -695,7 +707,8 @@ function renderWatch(movie) {
 /**
  * Draws one bar per person showing how well the movie fits them (best fit at
  * the top). Tapping a bar opens that person's sealed pick underneath it.
- * A dash means the movie wasn't in that person's own results.
+ * A dash means the movie wasn't in that person's own results; people with no
+ * preference are listed last.
  * @param {object[]} members name, fit and position for each person
  * @param {object[]} all the people, from people() (for avatars and what they wrote)
  * @param {boolean} [animate] grow the bars in from zero (only on first draw)
@@ -703,15 +716,16 @@ function renderWatch(movie) {
 function renderFitBars(members, all, animate = false) {
   const rows = members
     .map((m, i) => ({ ...m, i, color: COLORS[i], text: all[i] ? all[i].text : '' }))
-    .sort((a, b) => (b.fit ?? 0) - (a.fit ?? 0));
+    .sort((a, b) => (a.noPref - b.noPref) || (b.fit ?? 0) - (a.fit ?? 0));
   $('#fit-bars').innerHTML = rows.map((r) => `
     <button class="fit-row" data-person="${r.i}" aria-expanded="${state.revealed === r.i}">
       ${avatar(all[r.i])}
       <span class="fit-name">${escapeHtml(r.name)}</span>
+      ${r.noPref ? '<span class="fit-any">No preference</span><span></span>' : `
       <span class="bar"><span class="${animate ? 'grow' : ''}" style="width:${pct(r.fit ?? 0)};background:${r.color}"></span></span>
-      <span class="fit-pct" title="${r.fit == null ? 'Not in their top picks' : ''}">${r.fit == null ? '—' : pct(r.fit)}</span>
+      <span class="fit-pct" title="${r.fit == null ? 'Not in their top picks' : ''}">${r.fit == null ? '—' : pct(r.fit)}</span>`}
     </button>
-    ${state.revealed === r.i ? `<p class="note" style="--c:${r.color}">"${escapeHtml(r.text)}"</p>` : ''}`).join('');
+    ${state.revealed === r.i ? `<p class="note" style="--c:${r.color}">${r.noPref ? 'No preference, happy with anything.' : `"${escapeHtml(r.text)}"`}</p>` : ''}`).join('');
 }
 
 /**
@@ -781,29 +795,30 @@ document.addEventListener('click', (e) => {
   const action = e.target.closest('[data-action]')?.dataset.action;
   switch (action) {
     case 'go-intro': show('intro'); break;
-    case 'start-group': state.mode = 'group'; state.texts = []; state.sealed = []; renderSetup(); show('start'); break;
-    case 'start-solo': state.mode = 'solo'; state.texts = []; state.sealed = []; state.current = 0; startTurn(); break;
+    case 'start-group': state.mode = 'group'; state.texts = []; state.sealed = []; state.noPref = []; renderSetup(); show('start'); break;
+    case 'start-solo': state.mode = 'solo'; state.texts = []; state.sealed = []; state.noPref = []; state.current = 0; startTurn(); break;
     case 'setup': renderSetup(); show('start'); break;
     case 'size-down':
       // The person dropped off the end takes their pick with them.
-      if (state.size > 2) { state.texts[state.size - 1] = ''; state.sealed[state.size - 1] = false; }
+      if (state.size > 2) { state.texts[state.size - 1] = ''; state.sealed[state.size - 1] = false; state.noPref[state.size - 1] = false; }
       state.size = Math.max(2, state.size - 1); renderSetup(); break;
     case 'size-up': state.size = Math.min(6, state.size + 1); renderSetup(); break;
     case 'begin': beginPicks(); break;
     case 'ready': showInput(); break;
     case 'seal': seal(); break;
+    case 'no-pref': seal(true); break;
     case 'retry': submitPicks(); break;
     case 'edit': state.sealed = []; state.current = 0; state.revealed = -1; startTurn(); break;
     case 'another': showMovie((state.shown + 1) % state.results.movies.length); break;
     case 'watch': logWatch(); break;
     case 'restart':
-      if (state.texts.some(Boolean) && !window.confirm("Start a new movie night? Everyone's picks will be cleared.")) break;
+      if ((state.texts.some(Boolean) || state.sealed.some(Boolean)) && !window.confirm("Start a new movie night? Everyone's picks will be cleared.")) break;
       state = freshState(); show('intro'); break;
   }
 });
 
 // Every keystroke in the text box saves the draft, clears the "write
-// something" error and updates the characters-left count (and moves the pin,
+// something" error and updates the character count (and moves the pin,
 // when the mood map is on).
 $('#pick-text').addEventListener('input', (e) => {
   const cur = people()[state.current];
