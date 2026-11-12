@@ -122,24 +122,28 @@ function nextUnsealed(from = -1) {
 
 /**
  * Shows one screen and hides all the others, updates the top bar, then
- * scrolls to the top.
+ * scrolls to the top. The banner and the moods band only show on the intro.
  * @param {string} screen name of the screen, e.g. 'intro' shows #screen-intro
  */
 function show(screen) {
   $$('.screen').forEach((el) => { el.hidden = el.id !== `screen-${screen}`; });
+  $('#announce').hidden = screen !== 'intro';
+  $('#band').hidden = screen !== 'intro';
+  document.body.classList.toggle('is-intro', screen === 'intro');
   renderNav(screen);
   window.scrollTo(0, 0);
 }
 
 /**
- * Fills the right side of the top bar. On the intro it shows two short notes;
+ * Fills the right side of the top bar. On the intro it shows a "How it works"
+ * link and a short note;
  * everywhere else it shows Setup / Picks / Results with the current step
  * highlighted (on phones only the current step shows).
  * @param {string} screen the screen being shown
  */
 function renderNav(screen) {
   if (screen === 'intro') {
-    $('#nav').innerHTML = '<span class="pill">No sign-up</span><span class="pill">Works solo too</span>';
+    $('#nav').innerHTML = '<button class="link" data-action="how">How it works</button><span class="pill">No sign-up</span>';
     return;
   }
   const step = screen === 'start' ? 0 : (screen === 'loading' || screen === 'results') ? 2 : 1;
@@ -771,6 +775,12 @@ document.addEventListener('click', (e) => {
   const modeBtn = e.target.closest('[data-mode]');
   if (modeBtn) { state.mode = modeBtn.dataset.mode; renderSetup(); return; }
 
+  // A mood in the bottom band starts "Just me" with that mood already written.
+  const moodBtn = e.target.closest('[data-mood]');
+  if (moodBtn) {
+    state = freshState(); state.mode = 'solo'; state.texts = [moodBtn.dataset.mood]; startTurn(); return;
+  }
+
   const ideaBtn = e.target.closest('[data-idea]');
   if (ideaBtn) { addIdea(PLACEHOLDERS[Number(ideaBtn.dataset.idea)]); return; }
 
@@ -795,6 +805,10 @@ document.addEventListener('click', (e) => {
   const action = e.target.closest('[data-action]')?.dataset.action;
   switch (action) {
     case 'go-intro': show('intro'); break;
+    case 'how':
+      $('#howto').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      $('#howto').classList.remove('flash'); void $('#howto').offsetWidth; $('#howto').classList.add('flash');
+      break;
     case 'start-group': state.mode = 'group'; state.texts = []; state.sealed = []; state.noPref = []; renderSetup(); show('start'); break;
     case 'start-solo': state.mode = 'solo'; state.texts = []; state.sealed = []; state.noPref = []; state.current = 0; startTurn(); break;
     case 'setup': renderSetup(); show('start'); break;
@@ -865,5 +879,17 @@ function avatar(p, cls = '') {
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+/**
+ * Works out how much to scale the screens after the intro so they fill a big
+ * window the way the intro does (the intro scales itself in CSS). Never
+ * shrinks them, and phones are left alone.
+ */
+function fitZoom() {
+  const z = innerWidth >= 900 ? Math.max(1, Math.min(innerWidth / 1440, innerHeight / 902)) : 1;
+  document.documentElement.style.setProperty('--zoom', z.toFixed(3));
+}
+addEventListener('resize', fitZoom);
+fitZoom();
 
 show('intro');

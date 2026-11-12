@@ -47,6 +47,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .label, label { font-weight: 700; font-size: 16px; }
 
+/* ---------- Intro banner + bottom band ---------- */
+.announce { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 12px; background: var(--ink); color: #fff; font-size: 12.5px; white-space: nowrap; font-weight: 600; text-align: center; }
+.announce svg { flex-shrink: 0; width: 17px; height: 17px; }
+.announce span { overflow: hidden; text-overflow: ellipsis; }
+.announce .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--coral); flex-shrink: 0; }
+.band { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 22px 20px calc(22px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: #fff; text-align: center; }
+.band p { font-size: 20px; font-weight: 800; letter-spacing: -.015em; }
+.moods { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.mood-pill { min-height: 44px; padding: 8px 18px; border-radius: 99px; border: 2px solid var(--mc); background: none; color: var(--mc); font-size: 15px; font-weight: 700; cursor: pointer; transition: background .15s; }
+.mood-pill:hover { background: color-mix(in srgb, var(--mc) 16%, transparent); }
+.mood-pill:focus-visible { outline-color: #fff; }
+.m1 { --mc: #F08A73; }
+.m2 { --mc: #7CC3E6; }
+.m3 { --mc: #F2C94C; }
+
 /* ---------- Top bar ---------- */
 .topbar {
   width: 100%; max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -59,6 +74,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .mark i:nth-child(2) { left: 6px; background: #2C7DA0; }
 .mark i:nth-child(3) { left: 12px; background: #C48A0E; }
 .nav { display: flex; gap: 8px; align-items: center; }
+.nav .link { min-height: 36px; font-size: 15px; font-weight: 700; color: var(--ink); text-decoration: none; }
+.nav .link:hover { text-decoration: underline; }
 .pill { display: inline-flex; align-items: center; font-size: 13px; font-weight: 700; padding: 6px 11px; border-radius: 99px; background: var(--paper-2); color: var(--ink-2); white-space: nowrap; }
 .steps-nav { display: flex; gap: 4px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
 .steps-nav span { padding: 6px 12px; border-radius: 99px; white-space: nowrap; }
@@ -118,6 +135,9 @@ img.poster { display: block; padding: 0; object-fit: cover; height: auto; }
 .ctas { display: flex; flex-direction: column; gap: 4px; }
 .ctas .btn { width: 100%; }
 .ctas .btn.ghost { height: 44px; box-shadow: none; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.tagline { font-size: 14px; color: var(--ink-2); text-align: center; }
+.howto.flash li { animation: flash 1.2s ease; }
+@keyframes flash { 30% { box-shadow: inset 0 0 0 2px var(--coral); } }
 .intro-art { order: -1; height: 230px; display: grid; place-items: center; overflow: hidden; border-radius: 24px; background: rgba(255, 255, 255, .55); box-shadow: inset 0 0 0 1px var(--line); }
 .ov { position: relative; width: 236px; aspect-ratio: 560 / 540; container-type: inline-size; }
 .ov .c { position: absolute; width: 53.6%; aspect-ratio: 1; border-radius: 50%; mix-blend-mode: multiply; animation: drift 9s ease-in-out infinite alternate; }
@@ -126,17 +146,29 @@ img.poster { display: block; padding: 0; object-fit: cover; height: auto; }
 .ov .c3 { left: 22.3%; top: 39.8%; background: var(--gold-t); animation-delay: -6s; }
 .ov .poster { position: absolute; border-radius: 6%; }
 .ov .poster::after { border-radius: 4%; }
-.ov .main { width: 30%; left: 35%; top: 25.9%; font-size: 4.6cqw; transform: rotate(-4deg); z-index: 2; }
-.ov .s1 { width: 18.6%; left: 8.2%; top: 19.3%; font-size: 2.7cqw; transform: rotate(-11deg); }
-.ov .s2 { width: 18.6%; left: 73%; top: 22.2%; font-size: 2.7cqw; transform: rotate(9deg); }
+.ov .main { width: 29%; left: 35.5%; top: 21%; font-size: 4.6cqw; z-index: 2; }
+.ov .s1 { width: 21%; left: 7%; top: 21%; font-size: 2.7cqw; transform: rotate(-9deg); }
+.ov .s2 { width: 21%; left: 72%; top: 21%; font-size: 2.7cqw; transform: rotate(7deg); }
+.ov .clock { position: absolute; left: -3%; top: 12%; width: 9%; color: var(--coral); }
+.ov .common {
+  position: absolute; z-index: 3; left: 50%; top: 68%; transform: translateX(-50%); display: flex; align-items: center; gap: .45em; white-space: nowrap;
+  padding: .5em 1em; border-radius: 99px; background: var(--ink); color: #fff; font-size: clamp(9px, 2.5cqw, 14px); font-weight: 600; box-shadow: 0 8px 18px -10px rgba(31, 27, 75, .6);
+}
+.ov .common i { width: .7em; height: .7em; border-radius: 50%; background: #F08A73; }
+.ov .common i:nth-child(2) { background: #7CC3E6; }
+.ov .common i:nth-child(3) { background: #F2C94C; margin-right: .3em; }
+/* Four friends on the couch, below the posters. On phones it tucks into the bottom of the picture card. */
+.couch-scene { display: none; width: min(100%, 620px); margin: 24px auto 0; }
+.couch-scene__image { display: block; width: 100%; height: auto; transform-origin: bottom center; animation: couch-arrive 700ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes couch-arrive { from { opacity: 0; transform: translateY(16px); } }
 .ov .who {
   position: absolute; z-index: 3; display: flex; align-items: center; gap: .5em; white-space: nowrap; background: #fff; border-radius: 99px;
   padding: .35em .85em .35em .35em; font-size: clamp(9px, 2.4cqw, 13.5px); font-weight: 700; box-shadow: 0 8px 18px -10px rgba(31, 27, 75, .45);
 }
 .ov .who .av { width: 1.85em; height: 1.85em; font-size: .85em; box-shadow: none; }
-.ov .w1 { left: 0; top: 4%; }
-.ov .w2 { right: 0; top: 5%; }
-.ov .w3 { left: 38%; top: 90.4%; }
+.ov .w1 { left: 10%; top: 4%; }
+.ov .w2 { right: 4%; top: 4%; }
+.ov .w3 { right: -2%; top: 74%; }
 @keyframes drift { to { transform: translate(2%, -2%) scale(1.03); } }
 
 /* ---------- 2. Get started ---------- */
@@ -355,8 +387,18 @@ textarea.paper:focus { outline: none; box-shadow: inset 0 0 0 2px var(--c, var(-
   .ctas { flex-direction: row; gap: 12px; }
   .ctas .btn { width: auto; }
   .ctas .btn.ghost { height: 54px; box-shadow: inset 0 0 0 2px var(--ink); font-size: 16.5px; font-weight: 700; text-decoration: none; }
-  .intro-art { order: 0; height: auto; overflow: visible; background: none; box-shadow: none; border-radius: 0; }
+  .intro-copy .ctas { order: 1; }
+  .tagline { order: 2; text-align: left; font-size: 15px; margin-top: -6px; }
+  .howto { order: 3; margin-top: 18px; }
+  .intro-art { order: 0; height: auto; display: flex; flex-direction: column; align-items: center; overflow: visible; background: none; box-shadow: none; border-radius: 0; }
   .ov { width: 100%; max-width: 560px; }
+  .couch-scene { display: block; margin-top: -14%; position: relative; z-index: 4; }
+  .announce { font-size: 17px; padding: 12px 20px; gap: 10px; }
+  .announce svg { width: 22px; height: 22px; }
+  .band { flex-direction: row; justify-content: center; gap: 36px; padding: 22px 44px; }
+  .band p { font-size: 24px; }
+  .moods { gap: 22px; }
+  .mood-pill { padding: 8px 26px; font-size: 16px; }
 
   .input { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; align-items: start; align-content: center; }
   .write { padding: 28px; gap: 16px; background: var(--card); box-shadow: var(--shadow); border-radius: var(--radius); }
@@ -385,10 +427,90 @@ textarea.paper:focus { outline: none; box-shadow: inset 0 0 0 2px var(--c, var(-
   .res-ctas .btn.ghost { padding: 0 22px; }
 }
 
+/* ---------- Intro on wide screens: sized to the 1440 x 902 design ----------
+ * Every size is N design pixels times --u. --u scales the whole design to fit
+ * the window (by width or height, whichever runs out first), so the page looks
+ * like the mockup on any laptop or monitor, at any browser zoom. */
+@media (min-width: 900px) {
+  body { --u: max(.6px, min(calc(100vw / 1440), calc(100vh / 902))); }
+  .announce { height: calc(50 * var(--u)); padding: 0; gap: calc(21 * var(--u)); font-size: calc(19.5 * var(--u)); }
+  .announce svg { width: calc(32 * var(--u)); height: calc(32 * var(--u)); }
+  .announce .dot { width: calc(9 * var(--u)); height: calc(9 * var(--u)); margin-left: calc(-12 * var(--u)); }
+
+  body.is-intro .topbar { max-width: calc(1440 * var(--u)); padding: calc(22 * var(--u)) calc(82 * var(--u)) 0; }
+  body.is-intro .brand { gap: calc(12 * var(--u)); font-size: calc(24 * var(--u)); }
+  body.is-intro .mark { width: calc(43 * var(--u)); height: calc(25 * var(--u)); }
+  body.is-intro .mark i { width: calc(25 * var(--u)); height: calc(25 * var(--u)); }
+  body.is-intro .mark i:nth-child(2) { left: calc(9 * var(--u)); }
+  body.is-intro .mark i:nth-child(3) { left: calc(18 * var(--u)); }
+  body.is-intro .nav { gap: calc(34 * var(--u)); }
+  body.is-intro .nav .link { min-height: calc(37 * var(--u)); padding: 0; font-size: calc(18.7 * var(--u)); }
+  body.is-intro .nav .pill { height: calc(37 * var(--u)); padding: 0 calc(17 * var(--u)); font-size: calc(17 * var(--u)); color: var(--ink); }
+  body.is-intro #app { max-width: calc(1440 * var(--u)); }
+
+  .intro {
+    position: relative; height: calc(691 * var(--u)); padding: 0 calc(82 * var(--u)); overflow: hidden;
+    grid-template-columns: calc(590 * var(--u)) minmax(0, 1fr); gap: 0; align-items: start; align-content: start;
+  }
+  /* On screens taller than the design, the extra space goes above the hero so the couch still sits on the band. */
+  .intro { align-self: flex-end; }
+  .intro::after { content: ''; position: absolute; left: calc(82 * var(--u)); right: calc(82 * var(--u)); bottom: calc(27 * var(--u)); height: 1px; background: var(--line); }
+  .intro-copy { gap: 0; padding-top: calc(62 * var(--u)); }
+  .intro .eyebrow { font-size: calc(17 * var(--u)); line-height: 1; }
+  .display { margin-top: calc(22 * var(--u)); font-size: calc(72 * var(--u)); line-height: .93; }
+  .lead { margin-top: calc(22 * var(--u)); max-width: calc(540 * var(--u)); font-size: calc(20.8 * var(--u)); line-height: calc(29 * var(--u)); }
+  .intro-copy .ctas { margin-top: calc(40 * var(--u)); gap: calc(18 * var(--u)); }
+  .intro-copy .ctas .btn { height: calc(64 * var(--u)); padding: 0 calc(36 * var(--u)); border-radius: calc(13 * var(--u)); font-size: calc(22 * var(--u)); }
+  .intro-copy .ctas .btn.ghost { height: calc(64 * var(--u)); box-shadow: inset 0 0 0 calc(2.2 * var(--u)) var(--ink); font-size: calc(22 * var(--u)); }
+  .tagline { margin-top: calc(14 * var(--u)); font-size: calc(17.6 * var(--u)); }
+  .howto { margin: calc(40 * var(--u)) 0 0; max-width: none; grid-template-columns: calc(182 * var(--u)) calc(168 * var(--u)) calc(188 * var(--u)); justify-content: start; gap: calc(15 * var(--u)); }
+  .howto li { height: calc(88 * var(--u)); padding: calc(13 * var(--u)) calc(18 * var(--u)); white-space: nowrap; gap: calc(10 * var(--u)); border-radius: calc(14 * var(--u)); font-size: calc(16.5 * var(--u)); }
+  .howto .n { width: calc(30 * var(--u)); height: calc(30 * var(--u)); font-size: calc(15 * var(--u)); }
+
+  .intro-art { align-items: flex-start; }
+  .ov { width: calc(597 * var(--u)); max-width: none; margin: calc(-4 * var(--u)) 0 0 calc(10.5 * var(--u)); }
+  .ov .c { width: 53.6%; }
+  .ov .c1 { left: 4.1%; top: 7.5%; }
+  .ov .c2 { left: 42.3%; top: 7.5%; }
+  .ov .c3 { left: 23.7%; top: 30%; }
+  .ov .poster { aspect-ratio: 3 / 4; border-radius: 5%; }
+  .ov .s1 { width: 18.8%; left: 10.2%; top: 21.5%; transform: rotate(-9deg); }
+  .ov .main { width: 27%; left: 36.4%; top: 22.9%; }
+  .ov .s2 { width: 18.8%; left: 71%; top: 21.7%; transform: rotate(8deg); }
+  .ov .clock { left: -5.8%; top: 12.3%; width: 8%; }
+  .ov .who { height: calc(33 * var(--u)); padding: 0 calc(14 * var(--u)) 0 calc(5 * var(--u)); gap: calc(8 * var(--u)); font-size: calc(15 * var(--u)); }
+  .ov .who .av { width: calc(24 * var(--u)); height: calc(24 * var(--u)); font-size: calc(13 * var(--u)); }
+  .ov .w1 { left: 1.6%; top: 5.2%; }
+  .ov .w2 { right: -.8%; top: 5.2%; }
+  .ov .w3 { right: -6.4%; top: 68.6%; }
+  .ov .common { top: 62.3%; height: calc(31 * var(--u)); padding: 0 calc(16 * var(--u)); gap: calc(7 * var(--u)); font-size: calc(13.5 * var(--u)); }
+  .ov .common i { width: calc(10 * var(--u)); height: calc(10 * var(--u)); }
+  .couch-scene { width: calc(570 * var(--u)); height: calc(243 * var(--u)); margin: calc(-124 * var(--u)) 0 0 calc(24 * var(--u)); overflow: hidden; }
+
+  .band { height: calc(102 * var(--u)); padding: 0 calc(82 * var(--u)); gap: calc(33 * var(--u)); }
+  .band p { font-size: calc(27 * var(--u)); }
+  .moods { gap: calc(21.5 * var(--u)); }
+  .mood-pill { min-height: 0; height: calc(44 * var(--u)); padding: 0 calc(29.5 * var(--u)); border-width: calc(2.2 * var(--u)); font-size: calc(17.5 * var(--u)); }
+}
+
+/* The other screens are drawn at 1440 x 902 too. On bigger windows (or when
+ * zoomed out) they scale up by --zoom, set by fitZoom() in app.js. */
+body:not(.is-intro) .topbar, body:not(.is-intro) #app { zoom: var(--zoom, 1); }
+
 /* Short phones: shrink the intro picture so the button stays on screen. */
+@media (max-width: 899px) {
+  .intro-art { height: 304px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 2px; }
+  .ov { width: 262px; flex-shrink: 0; }
+  .couch-scene { display: block; width: 250px; height: 107px; margin: -56px 0 0 6px; overflow: hidden; position: relative; z-index: 4; }
+  .ov .w1 { left: -9%; top: 0; }
+  .ov .w2 { right: -9%; top: 0; }
+  .ov .w3 { right: auto; left: -9%; top: 54%; z-index: 5; }
+}
 @media (max-width: 899px) and (max-height: 760px) {
-  .intro-art { height: 190px; }
-  .ov { width: 196px; }
+  .intro-art { height: 200px; }
+  .ov { width: 172px; }
+  .couch-scene { width: 164px; height: 70px; margin: -37px 0 0 4px; }
+  .ov .w2 { display: none; }
   .display { font-size: 31px; }
 }
 @media (max-width: 899px) {
