@@ -10,11 +10,6 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-<!-- Intro only: a one-line banner above the top bar -->
-<div class="announce" id="announce">
-  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5.5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-  <span>More watching. Less &ldquo;what should we watch?&rdquo;</span><i class="dot" aria-hidden="true"></i>
-</div>
 <header class="topbar">
   <span class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>Eenie Meenie Movies</span>
   <nav class="nav" id="nav" aria-label="Progress"><!-- filled by renderNav() --></nav>
@@ -28,35 +23,29 @@
       <p class="eyebrow">Movie night, settled</p>
       <h1 class="display">Pick a movie <span class="hl">everyone's</span> into.</h1>
       <p class="sub lead">Everyone writes what they're in the mood for, in secret. We find the movie where your picks overlap.</p>
-      <ol class="howto" id="howto">
-        <li><span class="n">1</span>Write your mood</li>
-        <li><span class="n">2</span>Pass the device</li>
-        <li><span class="n">3</span>Reveal your matches</li>
+      <ol class="howto">
+        <li><span class="n">1</span>Take turns on one device</li>
+        <li><span class="n">2</span>Each person seals their pick</li>
+        <li><span class="n">3</span>Open them together and see the overlap</li>
       </ol>
       <div class="spacer"></div>
       <div class="ctas">
         <button class="btn" data-action="start-group">Start a group night <span aria-hidden="true">&rarr;</span></button>
         <button class="btn ghost" data-action="start-solo">Just me</button>
       </div>
-      <p class="tagline">One device. Private picks. No sign-up.</p>
     </div>
     <!-- Decorative picture: three moods overlap and the movie sits in the middle.
          The mood map is paused (see SHOW_MOOD_MAP in app.js). -->
     <div class="intro-art" aria-hidden="true">
       <div class="ov">
         <span class="c c1"></span><span class="c c2"></span><span class="c c3"></span>
-        <svg class="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12 6.5V12l-3.5 2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
         <!-- Real TMDB posters; the gradient shows behind each one until it loads -->
         <img class="poster s1" style="--p1:#D7695A;--p2:#6E1F22" src="https://image.tmdb.org/t/p/w342/1OJ9vkD5xPt3skC6KguyXAgagRZ.jpg" alt="">
         <img class="poster s2" style="--p1:#7BA3C9;--p2:#1B2C46" src="https://image.tmdb.org/t/p/w342/vDGr1YdrlfbU9wxTOdpf3zChmv9.jpg" alt="">
         <img class="poster main" style="--p1:#44624D;--p2:#121D16" src="https://image.tmdb.org/t/p/w342/pThyQovXQrw2m0s9x82twj48Jq4.jpg" alt="">
-        <span class="common"><i></i><i></i><i></i>Your common ground</span>
-        <span class="who w1"><span class="av" style="background:#E2553A">M</span>Maya: cozy and funny</span>
-        <span class="who w2"><span class="av" style="background:#2C7DA0">S</span>Sam: a clever twist</span>
-        <span class="who w3"><span class="av" style="background:#C48A0E">J</span>Jo: a little mystery</span>
-      </div>
-      <div class="couch-scene">
-        <img class="couch-scene__image" src="/static/girls-couch.webp" alt="Four friends sitting on a navy couch, facing the movie choices" decoding="async">
+        <span class="who w1"><span class="av" style="background:#E2553A">M</span>"cozy, funny"</span>
+        <span class="who w2"><span class="av" style="background:#2C7DA0">S</span>"a twist"</span>
+        <span class="who w3"><span class="av" style="background:#C48A0E">J</span>"a mystery"</span>
       </div>
     </div>
   </section>
@@ -85,18 +74,16 @@
         </div>
       </div>
       <div id="name-list"><!-- filled by renderNames() --></div>
-      <p class="error" id="name-error" role="alert" hidden></p>
       <p class="muted small">Names are optional. Each person gets their own color.</p>
     </div>
     <div class="spacer"></div>
     <div class="actions">
-      <button class="btn" data-action="begin" id="begin-btn">Start <span aria-hidden="true">&rarr;</span></button>
+      <button class="btn" data-action="begin">Start <span aria-hidden="true">&rarr;</span></button>
     </div>
   </section>
 
   <!-- 3. HAND-OFF -->
   <section id="screen-handoff" class="screen narrow center" hidden>
-    <button class="back" data-action="setup">&larr; Change setup</button>
     <div id="handoff-av"><!-- filled by startTurn() --></div>
     <h1>Pass it to <span class="js-cur-name"></span></h1>
     <p class="sub" id="handoff-sub"></p>
@@ -104,13 +91,11 @@
     <div class="actions">
       <button class="btn" data-action="ready"><span>I'm <span class="js-cur-name"></span>, show my turn</span></button>
     </div>
-    <div class="swap-box" id="handoff-swap" hidden><!-- everyone else still waiting; filled by startTurn() --></div>
   </section>
 
   <!-- 4. INPUT -->
   <section id="screen-input" class="screen input" hidden>
     <div class="card write">
-      <button class="back" data-action="setup">&larr; Change setup</button>
       <div class="write-head">
         <span id="input-av"><!-- filled by showInput() --></span>
         <div><h1 id="input-title"></h1><p class="muted" id="input-sub"></p></div>
@@ -122,20 +107,14 @@
         <div class="pin big" id="my-pin"></div>
       </div>
       <label for="pick-text">What are you in the mood for?</label>
-      <div class="paper-wrap">
-        <textarea id="pick-text" class="paper" rows="5" maxlength="300"></textarea>
-        <span id="pick-count" class="count" aria-hidden="true"></span>
-      </div>
+      <textarea id="pick-text" class="paper" rows="5"></textarea>
       <p id="pick-error" class="error" hidden>Write a few words first, even just a movie you love.</p>
       <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
       <div class="spacer"></div>
       <div class="envelopes only-narrow" id="input-envs"></div>
       <div class="write-foot">
         <p class="foot" id="next-hint"></p>
-        <div class="foot-btns">
-          <button class="btn" data-action="seal" id="seal-btn">Seal my pick</button>
-          <button class="btn ghost" data-action="no-pref" id="nopref-btn">No preference</button>
-        </div>
+        <button class="btn" data-action="seal" id="seal-btn">Seal my pick</button>
       </div>
     </div>
     <aside class="side" id="input-side">
@@ -194,11 +173,6 @@
       <div class="spacer"></div>
       <div class="res-ctas">
         <button class="btn" data-action="watch" id="watch-btn">We're watching this</button>
-        <p class="watch-done" id="watch-done" role="status" hidden>
-          Have a great movie night.
-          <a id="watch-link" href="#" target="_blank" rel="noopener">See where to stream it &rarr;</a>
-        </p>
-        <button class="btn ghost" data-action="another" id="another-btn">Show another pick</button>
         <button class="btn ghost" data-action="edit">Edit our picks</button>
         <button class="link" data-action="restart">New movie night</button>
       </div>
@@ -206,16 +180,6 @@
   </section>
 
 </main>
-
-<!-- Intro only: tapping a mood starts "Just me" with it already written -->
-<footer class="band" id="band">
-  <p>Different moods. One good movie.</p>
-  <div class="moods">
-    <button class="mood-pill m1" data-mood="Something funny that makes us laugh">A laugh, please</button>
-    <button class="mood-pill m2" data-mood="A twisty mystery that keeps me guessing">Keep me guessing</button>
-    <button class="mood-pill m3" data-mood="Something comforting and feel-good">Something comforting</button>
-  </div>
-</footer>
 <script src="/static/app.js"></script>
 </body>
 </html>
