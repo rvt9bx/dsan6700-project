@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 import time
 
 import requests
+from loguru import logger
 
 from movierec.config import settings
-
-logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 BASE_URL = settings.tmdb_base_url
@@ -22,6 +20,17 @@ def _get_api_key() -> str:
         if api_key:
             return api_key
     raise ValueError("Missing TMDB API key")
+
+
+def describe_error(error: Exception) -> str:
+    """A loggable summary of a failed request: its type and HTTP status, never its URL.
+
+    str() of a requests error includes the full URL, query string and all, and the
+    query string holds the TMDB api_key, so never log the error itself.
+    """
+    response = getattr(error, "response", None)
+    status = getattr(response, "status_code", None)
+    return f"{type(error).__name__} {status}" if status else type(error).__name__
 
 
 def _get_json_with_retry(
@@ -41,14 +50,13 @@ def _get_json_with_retry(
                     if retry_after and retry_after.isdigit()
                     else base_backoff * (2**attempt)
                 )
-                logger.warning(
-                    "TMDB returned %s for %s; retrying in %.1fs (attempt %d/%d)",
-                    response.status_code,
-                    url,
-                    sleep_s,
-                    attempt + 1,
-                    max_retries,
-                )
+                logger.bind(
+                    status=response.status_code,
+                    url=url,
+                    retry_in_s=round(sleep_s, 1),
+                    attempt=attempt + 1,
+                    max_retries=max_retries,
+                ).warning("TMDB returned a retryable status; retrying")
                 time.sleep(sleep_s)
                 continue
 
@@ -62,14 +70,13 @@ def _get_json_with_retry(
             if attempt >= max_retries:
                 raise
             sleep_s = base_backoff * (2**attempt)
-            logger.warning(
-                "Request/JSON error for %s (%s); retrying in %.1fs (attempt %d/%d)",
-                url,
-                e,
-                sleep_s,
-                attempt + 1,
-                max_retries,
-            )
+            logger.bind(
+                error=describe_error(e),
+                url=url,
+                retry_in_s=round(sleep_s, 1),
+                attempt=attempt + 1,
+                max_retries=max_retries,
+            ).warning("TMDB request or JSON error; retrying")
             time.sleep(sleep_s)
 
     return {}

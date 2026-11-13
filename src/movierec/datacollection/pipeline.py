@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import logging
+
+from loguru import logger
 
 from movierec.datacollection.imdb_cleaning import clean_imdb_data
 from movierec.datacollection.imdb_download import download_imdb_datasets
 from movierec.datacollection.initial_tmdb_scrape import scrape_tmdb_movies
-
-logger = logging.getLogger(__name__)
+from movierec.logging_setup import configure_logging
 
 
 def run_collection(
@@ -62,10 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging(log_file=False)
     run_collection(
         skip_download=args.skip_download,
         skip_clean=args.skip_clean,
