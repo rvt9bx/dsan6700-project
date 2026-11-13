@@ -7,21 +7,18 @@ import pandas as pd
 from movierec.config import settings
 from movierec.datacollection.tmdb import get_movie_info
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
-def scrape_tmdb_movies() -> None:
+def scrape_tmdb_movies(limit: int | None = None) -> None:
     """Scrape TMDB movie info for movies in the IMDB dataset."""
     # Verify API key status
     logger.info("API Key found" if settings.tmdb_api_key else "No API key found")
 
     # Read in movies dataset
-    movies_df = pd.read_csv("data/clean/imdb_movies.csv")
-
+    movies_df = pd.read_csv(settings.project_root / "data/clean/imdb_movies.csv")
+    if limit:
+        movies_df = movies_df.head(limit)
     results = []
 
     for _, row in movies_df.iterrows():
@@ -44,7 +41,7 @@ def scrape_tmdb_movies() -> None:
                 "title": title,
                 "year": year,
                 "overview": movie_info.get("overview"),
-                "genres": movie_info.get("genres", []),
+                "genres": movie_info.get("genres"),
                 "popularity": movie_info.get("popularity"),
                 "poster_path": movie_info.get("poster_path"),
                 "runtime": movie_info.get("runtime"),
@@ -52,13 +49,12 @@ def scrape_tmdb_movies() -> None:
         )
 
         # Rate limiting pause
-        time.sleep(0.25)
+        time.sleep(0.1)
 
     logger.info("Done!")
 
     # Convert to DataFrame
     tmdb_df = pd.DataFrame(results)
-    logger.info(f"DataFrame head:\n{tmdb_df.head().to_string()}")
 
     # Clean dataframe for missing tmdb info
     mask = (
@@ -67,8 +63,7 @@ def scrape_tmdb_movies() -> None:
         & tmdb_df["overview"].notna()
         & (tmdb_df["overview"] != "")
         & tmdb_df["genres"].notna()
-        & (tmdb_df["genres"] != "")
-        & (tmdb_df["genres"] != "[]")
+        & tmdb_df["genres"].map(bool)
     )
     cleaned_df = tmdb_df[mask].copy()
 
@@ -78,10 +73,17 @@ def scrape_tmdb_movies() -> None:
 
     # Get genres as list of strings
     cleaned_df["genres"] = cleaned_df["genres"].apply(lambda x: [d["name"] for d in x])
+    logger.info(f"Cleaned DataFrame head:\n{cleaned_df.head(2).to_string()}")
 
     # Save dataset
-    cleaned_df.to_parquet("data/clean/tmdb_movies.parquet", index=False)
+    cleaned_df.to_parquet(
+        settings.project_root / "data/clean/tmdb_movies.parquet", index=False
+    )
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
     scrape_tmdb_movies()

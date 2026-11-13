@@ -45,5 +45,6 @@ dev = [
 ]
 
 [project.scripts]
+movierec-collect = "movierec.datacollection.pipeline:main"
 movierec-ingest = "movierec.retrieval.ingest:main"
 

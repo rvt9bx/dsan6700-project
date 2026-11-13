@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # data collection settings
+    project_root: Path = Field(
+        default=Path(__file__).resolve().parents[2],
+        description="Root directory of the project",
+    )
+
     tmdb_api_key: SecretStr | None = Field(
         default=None,
         description="Hugging Face User Access Token (if using gated/private models)",
