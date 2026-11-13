@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
+from typing import cast
 
 from qdrant_client import QdrantClient, models
 
@@ -159,6 +160,7 @@ class QdrantStore:
         vector: Sequence[float],
         limit: int = 10,
         query_filter: models.Filter | None = None,
+        with_vectors: bool = False,
     ) -> list[Hit]:
         self.require_collection()
         result = self.client.query_points(
@@ -167,9 +169,17 @@ class QdrantStore:
             limit=limit,
             query_filter=query_filter,
             with_payload=True,
+            with_vectors=with_vectors,
         )
         return [
-            Hit(tmdb_id=int(p.id), score=float(p.score), payload=dict(p.payload or {}))
+            Hit(
+                tmdb_id=int(p.id),
+                score=float(p.score),
+                payload=dict(p.payload or {}),
+                vector=list(cast("list[float]", p.vector))
+                if with_vectors and isinstance(p.vector, list)
+                else None,
+            )
             for p in result.points
         ]
 

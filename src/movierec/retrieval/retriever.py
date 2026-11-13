@@ -80,6 +80,28 @@ class Retriever:
         return indexed
 
     # ---- searching (app) ---------------------------------------------
+    def embed_queries(self, queries: Sequence[str]) -> list[list[float]]:
+        """Embed user queries into dense vectors."""
+        return self.embedder.embed_queries(queries)
+
+    def search_vectors(
+        self,
+        vectors: Sequence[Sequence[float]],
+        limit: int = 10,
+        genres: Sequence[str] | None = None,
+        year_min: int | None = None,
+        year_max: int | None = None,
+        with_vectors: bool = False,
+    ) -> list[list[Hit]]:
+        """Search Qdrant using pre-computed query vectors."""
+        flt = build_filter(genres, year_min, year_max)
+        return [
+            self.store.search(
+                v, limit=limit, query_filter=flt, with_vectors=with_vectors
+            )
+            for v in vectors
+        ]
+
     def search(
         self,
         query: str,
@@ -87,22 +109,18 @@ class Retriever:
         genres: Sequence[str] | None = None,
         year_min: int | None = None,
         year_max: int | None = None,
+        with_vectors: bool = False,
     ) -> list[Hit]:
         """Natural-language query in, ranked movies out."""
-        return self.search_many([query], limit, genres, year_min, year_max)[0]
-
-    def search_many(
-        self,
-        queries: Sequence[str],
-        limit: int = 10,
-        genres: Sequence[str] | None = None,
-        year_min: int | None = None,
-        year_max: int | None = None,
-    ) -> list[list[Hit]]:
-        """One hit list per query (embeds all queries in one batch). Used for groups."""
-        vectors = self.embedder.embed_queries(queries)
-        flt = build_filter(genres, year_min, year_max)
-        return [self.store.search(v, limit=limit, query_filter=flt) for v in vectors]
+        vectors = self.embed_queries([query])
+        return self.search_vectors(
+            vectors,
+            limit=limit,
+            genres=genres,
+            year_min=year_min,
+            year_max=year_max,
+            with_vectors=with_vectors,
+        )[0]
 
     # ---- status (health / ready endpoints) ---------------------------
     def healthy(self) -> bool:

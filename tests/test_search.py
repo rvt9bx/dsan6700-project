@@ -12,14 +12,36 @@ PAYLOAD = {
 class FakeRetriever:
     """Returns the same hit for every query, so no Qdrant or model is needed."""
 
-    def search_many(self, query_texts, limit):
-        return [[Hit(tmdb_id=546554, score=0.8, payload=PAYLOAD)] for _ in query_texts]
+    def search(self, query, limit):
+        return [Hit(tmdb_id=546554, score=0.8, payload=PAYLOAD)]
+
+    def embed_queries(self, query_texts):
+        # Return dummy embeddings (or query texts) for each input query
+        return [[0.0] * 384 for _ in query_texts]
+
+    def search_vectors(self, query_vectors, limit, with_vectors):
+        # Return the same hits regardless of the vectors passed in
+        return [
+            [Hit(tmdb_id=546554, score=0.8, payload=PAYLOAD, vector=[0.0] * 384)]
+            for _ in query_vectors
+        ]
 
 
 def test_recommendation_carries_movie_details(monkeypatch):
     monkeypatch.setattr(search, "_retriever", FakeRetriever())
 
     pick = search.recommend_for_group(["a whodunit", "something funny"]).top_pick
+
+    assert pick.id == "546554"
+    assert pick.year == 2019
+    assert pick.genres == ["Comedy", "Crime", "Mystery"]
+    assert pick.poster_path == "/pThyQovXQrw2m0s9x82twj48Jq4.jpg"
+
+
+def test_solo_recommendation_carries_movie_details(monkeypatch):
+    monkeypatch.setattr(search, "_retriever", FakeRetriever())
+
+    pick = search.recommend_for_group(["something funny"]).top_pick
 
     assert pick.id == "546554"
     assert pick.year == 2019
