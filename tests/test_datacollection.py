@@ -4,8 +4,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from pydantic import SecretStr
 
+from movierec.config import Settings, settings
 from movierec.datacollection.tmdb import get_movie_id, get_movie_info
+
+
+@pytest.fixture(autouse=True)
+def mock_tmdb_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provide a dummy TMDB API key for all tests in this module."""
+    monkeypatch.setattr(settings, "tmdb_api_key", SecretStr("test-dummy-key"))
 
 
 class TestGetMovieId:
@@ -83,12 +91,8 @@ class TestGetMovieInfo:
         assert "overview" in result
         assert len(result["genres"]) == 2
         mock_get.assert_called_once_with(
-            f"{__import__('movierec.config').config.settings.tmdb_base_url}/movie/546554",
-            params={
-                "api_key": __import__(
-                    "movierec.config"
-                ).config.settings.tmdb_api_key.get_secret_value()
-            },
+            f"{settings.tmdb_base_url}/movie/546554",
+            params={"api_key": "test-dummy-key"},
         )
 
     @patch("movierec.datacollection.tmdb.get_movie_id")
@@ -104,22 +108,20 @@ class TestGetMovieInfo:
 class TestTmdbApiKey:
     """Tests for TMDB API key handling."""
 
+    def test_missing_api_key_raises_value_error(self, monkeypatch: pytest.MonkeyPatch):
+        """Calling TMDB functions without an API key raises ValueError."""
+        monkeypatch.setattr(settings, "tmdb_api_key", None)
+
+        with pytest.raises(ValueError, match="Missing TMDB API key"):
+            get_movie_id("Knives Out", 2019)
+
     def test_settings_tmdb_api_key_none_raises(self):
         """SecretStr.get_secret_value() raises when value is None."""
-
-        from movierec.config import Settings
-
-        settings = Settings(tmdb_api_key=None)
-        # The module does: settings.tmdb_api_key.get_secret_value()
-        # which raises AttributeError when tmdb_api_key is None
+        local_settings = Settings(tmdb_api_key=None)
         with pytest.raises(AttributeError):
-            settings.tmdb_api_key.get_secret_value()
+            local_settings.tmdb_api_key.get_secret_value()
 
     def test_settings_tmdb_api_key_works_when_set(self):
         """SecretStr.get_secret_value() returns the key when set."""
-        from pydantic import SecretStr
-
-        from movierec.config import Settings
-
-        settings = Settings(tmdb_api_key=SecretStr("test-key"))
-        assert settings.tmdb_api_key.get_secret_value() == "test-key"
+        local_settings = Settings(tmdb_api_key=SecretStr("test-key"))
+        assert local_settings.tmdb_api_key.get_secret_value() == "test-key"

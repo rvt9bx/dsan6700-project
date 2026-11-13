@@ -2,12 +2,16 @@ import requests
 
 from movierec.config import settings
 
-if settings.tmdb_api_key is not None:
-    TMDB_API_KEY = settings.tmdb_api_key.get_secret_value()
-else:
-    raise ValueError("Missing TMDB API key")
-
 BASE_URL = settings.tmdb_base_url
+
+
+def _get_api_key() -> str:
+    """Return the TMDB API key at request time rather than import time."""
+    if settings.tmdb_api_key is not None:
+        api_key = settings.tmdb_api_key.get_secret_value()
+        if api_key:
+            return api_key
+    raise ValueError("Missing TMDB API key")
 
 
 def get_movie_id(movie_title: str, year: int | None = None) -> int | None:
@@ -15,7 +19,7 @@ def get_movie_id(movie_title: str, year: int | None = None) -> int | None:
     url = f"{BASE_URL}/search/movie"
 
     params = {
-        "api_key": TMDB_API_KEY,
+        "api_key": _get_api_key(),
         "query": movie_title,
     }
     if year:
@@ -38,6 +42,6 @@ def get_movie_info(movie_title: str, year: int | None = None) -> dict:
 
     url = f"{BASE_URL}/movie/{movie_id}"
     params = {
-        "api_key": TMDB_API_KEY,
+        "api_key": _get_api_key(),
     }
     return requests.get(url, params=params).json()
