@@ -47,9 +47,9 @@ def parse_int(value: str | None) -> int | None:
     return int(s) if s else None
 
 
-def parse_float(value: str | None) -> float | None:
+def parse_float(value: str | float | None) -> float | None:
     try:
-        f = float(value or "")
+        f = float("" if value is None else value)
     except (TypeError, ValueError):
         return None
     return f if math.isfinite(f) else None
