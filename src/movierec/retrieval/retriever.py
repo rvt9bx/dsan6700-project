@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterable, Iterator, Sequence
 from itertools import islice
+
+from loguru import logger
 
 from .embeddings import Embedder, EmbeddingBackend
 from .models import Hit, MovieDoc, RetrievalSettings
 from .vectorstore import QdrantStore, build_filter, collection_name
-
-logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------- helpers
@@ -76,7 +75,7 @@ class Retriever:
             self.store.upsert(chunk, vectors)
 
             indexed += len(chunk)
-            logger.info("Indexed batch: %d new (total %d)", len(chunk), indexed)
+            logger.bind(new=len(chunk), total=indexed).info("Indexed batch")
         return indexed
 
     # ---- searching (app) ---------------------------------------------

@@ -6,12 +6,11 @@ swapping models is a config change and the weights can live on a Docker volume.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class EmbeddingBackend(Protocol):
@@ -71,10 +70,8 @@ class Embedder:
 
             self._check_supported()
             self.cache_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(
-                "Loading embedding model %s (cache: %s)",
-                self.model_name,
-                self.cache_dir,
+            logger.bind(model=self.model_name, cache_dir=str(self.cache_dir)).info(
+                "Loading embedding model"
             )
             self._model = TextEmbedding(
                 model_name=self.model_name, cache_dir=str(self.cache_dir)
