@@ -134,7 +134,7 @@ def _finish_job(job_id: str, outcome: str, started: float) -> None:
     """Record a finished job in the metrics, and start its time-to-live."""
     jobs[job_id]["finished_at"] = time.monotonic()
     metrics.JOBS.labels(outcome=outcome).inc()
-    metrics.JOB_SECONDS.observe(time.perf_counter() - started)
+    metrics.JOB_SECONDS.labels(outcome=outcome).observe(time.perf_counter() - started)
     metrics.JOBS_IN_FLIGHT.dec()
 
 

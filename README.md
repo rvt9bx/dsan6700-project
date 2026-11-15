@@ -7,13 +7,15 @@ A package for solo or group semantic movie recommendations.
 
 ## Running with Docker
 
-The app runs as three containers, defined in `compose.yml`:
+The app runs as five containers, defined in `compose.yml`:
 
-- **app**: FastAPI and the UI on port 8080, the only published port
+- **app**: FastAPI and the UI on port 8080, the only port published to the internet
 - **qdrant**: the vector database, reachable only by the other containers
 - **ingest**: a one-off job that loads the movies into Qdrant
+- **prometheus**: collects the app's `/metrics` (see [Monitoring](#monitoring)); port 9090 on this machine only
+- **grafana**: the dashboard; port 3000 on this machine only
 
-Start the app and Qdrant with
+Start everything except ingest with
 
 ```bash
 docker compose up -d --build
@@ -139,6 +141,37 @@ docker compose exec app cat /logs/app.jsonl | jq -c 'select(.event == "watch_cli
 
 `LOG_LEVEL` (default `INFO`) sets the lowest level logged. `LOG_JSON=false` prints readable text to stdout instead,
 which is easier to read during development; `app.jsonl` is JSON either way.
+
+## Monitoring
+
+Prometheus collects the app's `/metrics` every 15 seconds and keeps 30 days of history. Grafana shows it on the
+**Eenie Meenie Movies** dashboard: the [SLO](docs/SLO.md) and its error budget, requests and errors per route,
+response times, job duration and outcomes, requests turned away by the limits, and recommendation quality (the top
+pick's score and how often a search finds nothing).
+
+Both need two settings in `.env`, next to `compose.yml`:
+
+```bash
+METRICS_TOKEN=<at least 16 characters>     # the app requires it on /metrics, and Prometheus sends it
+GRAFANA_ADMIN_PASSWORD=<a password>        # without it, Grafana's admin password is "admin"
+```
+
+Generate a token with `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. After changing either, run
+`docker compose up -d` so the containers pick it up.
+
+Neither port is open to the internet. From your laptop, open an SSH tunnel to the instance and leave it running:
+
+```bash
+ssh -N -L 3000:localhost:3000 -L 9090:localhost:9090 exouser@<instance-hostname>
+```
+
+Then open <http://localhost:3000> and log in as `admin` with `GRAFANA_ADMIN_PASSWORD`; the dashboard is the home
+page. <http://localhost:9090/targets> shows whether Prometheus can reach the app: `movierec` should be `UP`. If it
+is `DOWN` with a 401 or 403, `METRICS_TOKEN` is missing from `.env` or the containers were not restarted after
+adding it.
+
+The data source and dashboard are files in `monitoring/grafana/`, loaded when Grafana starts. Edit the JSON there
+rather than in the Grafana UI, which does not save changes back to git.
 
 ## Deploying on Jetstream2
 

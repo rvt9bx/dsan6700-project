@@ -24,9 +24,12 @@ JOBS = Counter(
     "Recommendation jobs that finished, by outcome (completed or failed)",
     ["outcome"],
 )
+# The SLO (docs/SLO.md) counts completed jobs in the le="5.0" bucket as good, so keep
+# 5 among the buckets and keep the outcome label
 JOB_SECONDS = Histogram(
     "movierec_recommend_job_duration_seconds",
-    "Time for a recommendation job: embedding the descriptions, searching and ranking",
+    "Time for a recommendation job (embedding, searching and ranking), by outcome",
+    ["outcome"],
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60),
 )
 JOBS_IN_FLIGHT = Gauge(
