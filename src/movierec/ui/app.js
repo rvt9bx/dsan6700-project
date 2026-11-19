@@ -59,6 +59,7 @@ function freshState() {
     texts: [],                // texts[i] = person i's description (kept as they type)
     sealed: [],               // sealed[i] = true once person i has sealed their pick
     noPref: [],               // noPref[i] = true when person i sealed "No preference" (no text)
+    oldTexts: [],             // oldTexts[i] = person i's pick before they chose to change it (hidden until they ask)
     current: 0,               // who is writing now (any order, see nextUnsealed)
     jobId: null,              // the job the API is running for this group
     results: null,            // {movies, members}, built by toResults()
@@ -310,6 +311,7 @@ function showInput() {
   $('#input-title').textContent = solo ? 'Your pick' : `${cur.name}'s turn`;
   $('#input-sub').textContent = solo ? 'Describe the movie you want tonight.' : 'Everyone else, look away.';
   $('#pick-text').value = cur.text;
+  $('#old-pick').hidden = !state.oldTexts[state.current];
   $('#pick-text').placeholder = PLACEHOLDERS[state.current % PLACEHOLDERS.length];
   $('#pick-error').hidden = true;
   renderCount();
@@ -421,6 +423,7 @@ function seal(noPref = false) {
   if (!noPref && !text) { $('#pick-error').hidden = false; return; }
   state.texts[state.current] = text;
   state.noPref[state.current] = noPref;
+  state.oldTexts[state.current] = '';
 
   if (state.mode === 'solo') return submitPicks();
 
@@ -433,10 +436,36 @@ function seal(noPref = false) {
   renderEnvelopes();
   show('sealed');
   setTimeout(() => {
-    if (next === -1) return submitPicks();
+    if (next === -1) return showAllSealed();
     state.current = next;
     startTurn();
   }, 1300);
+}
+
+/**
+ * Shows "Everyone's sealed!" once the last pick is in: one last chance for
+ * anyone to change theirs before the search starts (a button per person),
+ * and "Find our movie" to start it.
+ */
+function showAllSealed() {
+  renderEnvelopes();
+  $('#change-list').innerHTML = people().map((p) =>
+    `<button class="swap" data-change="${p.i}">${avatar(p)}${escapeHtml(p.name)}</button>`).join('');
+  show('allsealed');
+}
+
+/**
+ * Opens a person's turn again so they can change their pick. The box starts
+ * empty, so nobody nearby sees what they wrote before; "Show what I wrote"
+ * and "Keep my old pick" bring it back.
+ * @param {number} i the person's index
+ */
+function changePick(i) {
+  if (state.texts[i]) state.oldTexts[i] = state.texts[i];
+  state.texts[i] = '';
+  state.sealed[i] = false;
+  state.current = i;
+  showInput();
 }
 
 // ---------- 5. API (async job pattern) ----------
@@ -787,6 +816,9 @@ document.addEventListener('click', (e) => {
   const removeBtn = e.target.closest('[data-remove]');
   if (removeBtn) { removePerson(Number(removeBtn.dataset.remove)); return; }
 
+  const changeBtn = e.target.closest('[data-change]');
+  if (changeBtn) { changePick(Number(changeBtn.dataset.change)); return; }
+
   const swapBtn = e.target.closest('[data-current]');
   if (swapBtn) { state.current = Number(swapBtn.dataset.current); startTurn(); return; }
 
@@ -822,7 +854,15 @@ document.addEventListener('click', (e) => {
     case 'seal': seal(); break;
     case 'no-pref': seal(true); break;
     case 'retry': submitPicks(); break;
-    case 'edit': state.sealed = []; state.current = 0; state.revealed = -1; startTurn(); break;
+    case 'edit':
+      // Everyone writes again, each starting from an empty box (#36)
+      if (state.mode === 'group') people().forEach((p) => { if (p.text) state.oldTexts[p.i] = p.text; state.texts[p.i] = ''; });
+      state.sealed = []; state.current = 0; state.revealed = -1; startTurn(); break;
+    case 'find': submitPicks(); break;
+    case 'show-old':
+      $('#pick-text').value = state.texts[state.current] = state.oldTexts[state.current];
+      $('#old-pick').hidden = true; renderCount(); $('#pick-text').focus(); break;
+    case 'keep-old': $('#pick-text').value = state.oldTexts[state.current]; seal(); break;
     case 'another': showMovie((state.shown + 1) % state.results.movies.length); break;
     case 'watch': logWatch(); break;
     case 'restart':
