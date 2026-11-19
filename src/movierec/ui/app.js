@@ -19,6 +19,7 @@
 const USE_MOCK = false;
 const POLL_MS = 1000;          // how often to check job status
 const POLL_TIMEOUT_MS = 60000; // give up after a minute
+const BUSY_TRIES = 4;          // when the server is busy, wait and try this many times before showing an error
 
 // The mood map (Cozy/Intense, Light/Dark) is paused until the team decides on it.
 // true = show the map; false = show idea suggestions and a plain poster instead.
@@ -466,13 +467,16 @@ const TOP_K = 8;
 async function submitPicks() {
   setLoadStep(0);
   $('#load-error').hidden = true;
+  $('#load-busy').hidden = true;
   show('loading');
   try {
     const members = people();
-    const { job_id } = await api('POST', '/recommend', {
+    const mine = state;
+    const { job_id } = await startJob({
       query_texts: members.filter((p) => !p.noPref).map((p) => p.text),
       top_k: TOP_K,
     });
+    if (state !== mine) return;   // they started a new movie night while waiting
     state.jobId = job_id;
     setLoadStep(1);
     await waitForJob(job_id);
@@ -485,8 +489,44 @@ async function submitPicks() {
     show('results');
   } catch (err) {
     console.error(err);
+    $('#load-busy').hidden = true;
     $('#load-error').hidden = false;
   }
+}
+
+/**
+ * Starts the job with POST /recommend. If the server is busy (429: too many
+ * requests from this device, 503: too many jobs running), it shows
+ * "Lots of people are picking right now" with a countdown of the seconds the
+ * server asks for (Retry-After), then tries again, up to BUSY_TRIES times.
+ * Everyone's picks are kept the whole time.
+ * @param {object} body {query_texts, top_k}
+ * @returns {Promise<object>} {job_id, status}
+ * @throws if it is still busy after BUSY_TRIES, or for any other error
+ */
+async function startJob(body) {
+  for (let tries = 1; ; tries++) {
+    try {
+      return await api('POST', '/recommend', body);
+    } catch (err) {
+      if (!err.busy || tries >= BUSY_TRIES) throw err;
+      await busyCountdown(err.retryAfter);
+    }
+  }
+}
+
+/**
+ * Shows the busy message and counts down, one second at a time.
+ * @param {number} seconds from Retry-After; 5 if the server didn't say, at most 60
+ */
+async function busyCountdown(seconds) {
+  const busy = $('#load-busy');
+  busy.hidden = false;
+  for (let s = Math.min(Math.max(Math.ceil(seconds) || 5, 1), 60); s > 0; s--) {
+    $('#busy-sub').textContent = `Trying again in ${s}s…`;
+    await sleep(1000);
+  }
+  $('#busy-sub').textContent = 'Trying again…';
 }
 
 /**
@@ -534,7 +574,8 @@ function toResults(res, members) {
  * @param {string} path the endpoint, e.g. '/recommend'
  * @param {object} [body] data to send as JSON (POST only)
  * @returns {Promise<object>} the server's JSON reply
- * @throws if the server replies with an error code (404, 500, ...)
+ * @throws if the server replies with an error code (404, 500, ...). The error
+ *   has busy = true for 429 and 503, and retryAfter = the seconds to wait
  */
 async function api(method, path, body) {
   if (USE_MOCK) return mockApi(method, path, body);
@@ -543,7 +584,12 @@ async function api(method, path, body) {
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(`${method} ${path} -> ${res.status}`);
+    err.busy = res.status === 429 || res.status === 503;
+    err.retryAfter = Number(res.headers.get('Retry-After'));
+    throw err;
+  }
   return res.json();
 }
 
