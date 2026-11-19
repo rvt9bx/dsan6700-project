@@ -1,0 +1,6 @@
+# Caddy answers at our instance's name, gets an HTTPS certificate from Let's Encrypt on its own,
+# redirects http to https, and passes every request on to the app over the Compose network.
+# MOVIEREC_DOMAIN comes from .env; without it, Caddy serves https://localhost with its own local certificate
+{$MOVIEREC_DOMAIN:localhost} {
+	reverse_proxy app:8080
+}

@@ -4,11 +4,13 @@ A package for solo or group semantic movie recommendations.
 
 ## Running with Docker
 
-The app runs as three containers, defined in `compose.yml`:
+The app runs as four containers, defined in `compose.yml`:
 
-- **app**: FastAPI and the UI on port 8080, the only published port
+- **app**: FastAPI and the UI on port 8080
 - **qdrant**: the vector database, reachable only by the other containers
 - **ingest**: a one-off job that loads the movies into Qdrant
+- **caddy**: on the instance only, serves the app over HTTPS on ports 80 and 443 (see
+  [Deploying on Jetstream2](#deploying-on-jetstream2))
 
 Start the app and Qdrant with
 
@@ -32,7 +34,8 @@ Configuration is read from the environment. Copy `.env.example` to `.env` to ove
 ## API
 
 Interactive docs, with every endpoint's request and response schemas, are at `http://localhost:8080/docs` while the
-app is running. On Jetstream2, replace `localhost` with the instance's hostname in the commands below.
+app is running. On Jetstream2, replace `http://localhost:8080` with `https://team01-app.cis240466.projects.jetstream-cloud.org`
+in the commands below.
 
 Recommendations run as background jobs: start one, poll its status until it is `completed`, then get the results.
 These three commands run in order; the first saves the job id in `JOB_ID` for the next two (it needs `python3`):
@@ -89,8 +92,13 @@ On the instance (an `m3.small` is enough):
 
 ```bash
 git clone https://github.com/rvt9bx/dsan6700-project.git && cd dsan6700-project
+cp .env.deploy.example .env          # then put the real TMDB_API_KEY in .env
 docker compose up -d --build
 ```
+
+`.env.deploy.example` sets `COMPOSE_PROFILES=proxy`, so Caddy starts too and serves the app over HTTPS at
+`MOVIEREC_DOMAIN`, with a Let's Encrypt certificate it gets and renews on its own. In Exosphere, the instance's
+firewall must allow ports 80 and 443.
 
 From your laptop, copy the Parquet to the instance, then run ingest there:
 
@@ -110,8 +118,24 @@ to `main`:
 git pull && docker compose up -d --build
 ```
 
-Only port 8080 is published. The containers restart on their own after a reboot or unshelve, but shelving releases the
-public IP, so use the instance's hostname rather than its IP.
+From outside, only ports 80 and 443 answer: the app's 8080 listens on the instance itself only (`APP_BIND=127.0.0.1`),
+and Qdrant is not published at all. To check, on the instance:
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Ports}}'
+```
+
+You should see `0.0.0.0:80` and `0.0.0.0:443` for caddy, `127.0.0.1:8080` for app, and nothing for qdrant. From your
+laptop:
+
+```bash
+curl -I http://team01-app.cis240466.projects.jetstream-cloud.org            # 308, Location: https://...
+curl https://team01-app.cis240466.projects.jetstream-cloud.org/ready        # {"status":"ready"}
+curl -m 5 http://team01-app.cis240466.projects.jetstream-cloud.org:8080     # Failed to connect
+```
+
+The containers restart on their own after a reboot or unshelve, but shelving releases the public IP, so use the
+instance's hostname rather than its IP.
 
 ## Contributing
 
