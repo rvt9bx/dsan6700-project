@@ -309,10 +309,19 @@ def test_a_completed_job_is_counted(monkeypatch):
             "movierec_recommend_jobs_total", {"outcome": "completed"}
         )
 
+    def fast_and_completed():
+        # the series docs/SLO.md counts as good: if this test breaks, fix the SLO query too
+        return REGISTRY.get_sample_value(
+            "movierec_recommend_job_duration_seconds_bucket",
+            {"outcome": "completed", "le": "5.0"},
+        )
+
     before = completed() or 0.0
+    before_fast = fast_and_completed() or 0.0
     main._run_recommendation_job("job-1", ["a"], 5)
 
     assert completed() == before + 1
+    assert fast_and_completed() == before_fast + 1
 
 
 # ---- settings
