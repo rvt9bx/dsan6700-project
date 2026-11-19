@@ -72,6 +72,9 @@ let state = freshState();
 
 const MAX_NAME = 20;          // characters allowed in a name
 const MAX_PICK = 300;         // characters allowed in a description
+const LAST_NIGHT_KEY = 'eenie:lastNight';  // where this device remembers the last group and picks
+// Phones get the Share menu (Messages, WhatsApp, ...); laptops copy the text instead.
+const CAN_SHARE = !!navigator.share && window.matchMedia('(pointer: coarse)').matches;
 
 // Shortcuts: $('#id') finds one element on the page, $$('.class') finds all matches.
 const $ = (sel) => document.querySelector(sel);
@@ -131,6 +134,7 @@ function show(screen) {
   $('#announce').hidden = screen !== 'intro';
   $('#band').hidden = screen !== 'intro';
   document.body.classList.toggle('is-intro', screen === 'intro');
+  if (screen === 'intro') renderLastNight();
   renderNav(screen);
   window.scrollTo(0, 0);
 }
@@ -208,6 +212,7 @@ function removePerson(i) {
   state.names.splice(i, 1);
   state.names.push('');
   state.texts.splice(i, 1);
+  state.oldTexts.splice(i, 1);
   state.sealed.splice(i, 1);
   state.noPref.splice(i, 1);
   state.size -= 1;
@@ -468,6 +473,89 @@ function changePick(i) {
   showInput();
 }
 
+// ---------- 4b. LAST NIGHT (saved on this device only) ----------
+
+/**
+ * Remembers who took part and what they wrote, on this device only (the
+ * browser's localStorage; nothing is sent anywhere), so next time "Use last
+ * group" fills them in. Called once the results are in.
+ */
+function saveLastNight() {
+  const saved = { mode: state.mode, size: state.size, names: state.names, texts: people().map((p) => p.text) };
+  try { localStorage.setItem(LAST_NIGHT_KEY, JSON.stringify(saved)); } catch { /* private window: skip */ }
+}
+
+/** @returns {object|null} what saveLastNight() saved, or null if nothing (or storage is blocked) */
+function loadLastNight() {
+  try { return JSON.parse(localStorage.getItem(LAST_NIGHT_KEY)) || null; } catch { return null; }
+}
+
+/**
+ * Shows "Use last group: Ana, Ben, Cy" (or "Use my last pick") on the intro,
+ * when this device has a saved night.
+ */
+function renderLastNight() {
+  const last = loadLastNight();
+  $('#last-night').hidden = !last;
+  if (!last) return;
+  const names = last.names.slice(0, last.size).map((n, i) => n.trim() || `Person ${i + 1}`);
+  $('#last-night').textContent = last.mode === 'solo' ? 'Use my last pick' : `Use last group: ${names.join(', ')}`;
+}
+
+/**
+ * Starts a new night with the saved group: same names, and everyone's old pick
+ * waiting behind "Show what I wrote" / "Keep my old pick" (their box still
+ * starts empty, so nobody sees anyone else's).
+ */
+function useLastNight() {
+  const last = loadLastNight();
+  if (!last) return;
+  state = freshState();
+  state.mode = last.mode;
+  state.size = last.size;
+  state.names = last.names;
+  state.oldTexts = last.texts;
+  if (state.mode === 'solo') return startTurn();
+  renderSetup();
+  show('start');
+}
+
+/**
+ * The text that Share / Copy sends: the movie in front and the next two.
+ * @returns {string}
+ */
+function shareText() {
+  const { movies } = state.results;
+  const pick = movies[state.shown];
+  const name = (m) => (m.year ? `${m.title} (${m.year})` : m.title);
+  const others = movies.filter((m) => m !== pick).slice(0, 2).map(name);
+  return [
+    `🍿 Tonight: ${name(pick)}`,
+    others.length ? `Also close: ${others.join(', ')}` : '',
+    `Picked with Eenie Meenie Movies: ${location.origin}`,
+  ].filter(Boolean).join('\n');
+}
+
+/**
+ * Opens the phone's Share menu with shareText(), or copies it on a laptop
+ * (the button says "Copied!" for 2 seconds). If copying is blocked, shows the
+ * text in a box to copy by hand.
+ */
+async function sharePick() {
+  const text = shareText();
+  if (CAN_SHARE) {
+    try { await navigator.share({ text }); } catch { /* they closed the menu */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    $('#share-btn').textContent = 'Copied!';
+    setTimeout(() => { $('#share-btn').textContent = 'Copy to share'; }, 2000);
+  } catch {
+    window.prompt('Copy this:', text);
+  }
+}
+
 // ---------- 5. API (async job pattern) ----------
 // Matches the FastAPI endpoints in src/movierec/api/main.py (schemas in schemas.py):
 //   POST /recommend              body {query_texts: [...], top_k}  -> {job_id, status}
@@ -512,6 +600,7 @@ async function submitPicks() {
     state.watchedId = null;
     renderResults();
     show('results');
+    saveLastNight();
   } catch (err) {
     console.error(err);
     $('#load-error').hidden = false;
@@ -841,8 +930,10 @@ document.addEventListener('click', (e) => {
       $('#howto').scrollIntoView({ behavior: 'smooth', block: 'center' });
       $('#howto').classList.remove('flash'); void $('#howto').offsetWidth; $('#howto').classList.add('flash');
       break;
-    case 'start-group': state.mode = 'group'; state.texts = []; state.sealed = []; state.noPref = []; renderSetup(); show('start'); break;
-    case 'start-solo': state.mode = 'solo'; state.texts = []; state.sealed = []; state.noPref = []; state.current = 0; startTurn(); break;
+    case 'start-group': state.mode = 'group'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; renderSetup(); show('start'); break;
+    case 'start-solo': state.mode = 'solo'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; state.current = 0; startTurn(); break;
+    case 'last-night': useLastNight(); break;
+    case 'share': sharePick(); break;
     case 'setup': renderSetup(); show('start'); break;
     case 'size-down':
       // The person dropped off the end takes their pick with them.
@@ -932,4 +1023,5 @@ function fitZoom() {
 addEventListener('resize', fitZoom);
 fitZoom();
 
+if (CAN_SHARE) $('#share-btn').textContent = 'Share';
 show('intro');
