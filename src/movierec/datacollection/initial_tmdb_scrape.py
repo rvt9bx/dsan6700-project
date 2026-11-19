@@ -1,17 +1,16 @@
-# import packages
+"""Look up each cleaned IMDb movie on TMDB and save the results as a Parquet file."""
 
 import json
-import logging
 import time
 from pathlib import Path
 
 import pandas as pd
 import requests
+from loguru import logger
 
 from movierec.config import settings
-from movierec.datacollection.tmdb import get_movie_info
-
-logger = logging.getLogger(__name__)
+from movierec.datacollection.tmdb import describe_error, get_movie_info
+from movierec.logging_setup import configure_logging
 
 
 def _load_checkpoint(checkpoint_path: Path) -> list[dict]:
@@ -35,9 +34,7 @@ def scrape_tmdb_movies(limit: int | None = None) -> None:
     results = _load_checkpoint(checkpoint_path)
     scraped_ids = {r["tconst"] for r in results}
     if scraped_ids:
-        logger.info(
-            "Resuming from checkpoint (%d movies already scraped)", len(scraped_ids)
-        )
+        logger.bind(already_scraped=len(scraped_ids)).info("Resuming from checkpoint")
 
     movies_df = movies_df[~movies_df["tconst"].isin(scraped_ids)]
     if limit is not None:
@@ -48,12 +45,14 @@ def scrape_tmdb_movies(limit: int | None = None) -> None:
             title = row["primaryTitle"]
             tconst = row["tconst"]
             year = row["startYear"]
-            logger.info("Getting data for %s (%s)", title, year)
+            log = logger.bind(title=title, year=year, tconst=tconst)
+            log.info("Getting TMDB data")
 
             try:
                 movie_info = get_movie_info(title, year)
             except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
-                logger.error("Failed to fetch %s (%s): %s", title, tconst, e)
+                # describe_error, not e: the message of a requests error holds the URL, api_key and all
+                log.bind(error=describe_error(e)).error("Failed to fetch from TMDB")
                 continue
 
             record = {
@@ -96,7 +95,7 @@ def scrape_tmdb_movies(limit: int | None = None) -> None:
 
     # Get genres as list of strings
     cleaned_df["genres"] = cleaned_df["genres"].apply(lambda x: [d["name"] for d in x])
-    logger.info(f"Cleaned DataFrame head:\n{cleaned_df.head(2).to_string()}")
+    logger.bind(rows=len(cleaned_df)).info("Cleaned TMDB data")
 
     # Save dataset
     cleaned_df.to_parquet(clean_dir / "tmdb_movies.parquet", index=False)
@@ -104,8 +103,5 @@ def scrape_tmdb_movies(limit: int | None = None) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
+    configure_logging(log_file=False)
     scrape_tmdb_movies()

@@ -15,7 +15,9 @@ dependencies = [
     "fastapi>=0.146.0",
     "fastembed>=0.9.1",
     "fastparquet>=2026.9.0",
+    "loguru>=0.7.3",
     "pandas>=3.0.6",
+    "prometheus-client>=0.26.0",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.0",
     "qdrant-client>=1.20.0",
@@ -48,3 +50,7 @@ dev = [
 movierec-collect = "movierec.datacollection.pipeline:main"
 movierec-ingest = "movierec.retrieval.ingest:main"
 
+
+[tool.ruff.lint]
+# loguru's logger counts as a logger, so `except Exception` that logs the error is allowed
+logger-objects = ["loguru.logger"]

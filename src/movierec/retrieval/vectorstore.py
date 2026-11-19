@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from collections.abc import Sequence
 
+from loguru import logger
 from qdrant_client import QdrantClient, models
 
 from .models import Hit, MovieDoc
-
-logger = logging.getLogger(__name__)
 
 
 class CollectionMismatchError(RuntimeError):
@@ -81,8 +79,8 @@ class QdrantStore:
     def ensure_collection(self) -> None:
         """Create the collection if missing; otherwise verify its vector size."""
         if not self.exists():
-            logger.info(
-                "Creating collection %s (dim=%d, cosine)", self.collection, self.dim
+            logger.bind(collection=self.collection, dim=self.dim).info(
+                "Creating collection (cosine distance)"
             )
             self.client.create_collection(
                 collection_name=self.collection,
