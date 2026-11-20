@@ -2,7 +2,7 @@
 
 from .data import MovieRecord, iter_movies, movie_to_payload, movie_to_text
 from .embeddings import Embedder, EmbeddingBackend
-from .retriever import Hit, MovieDoc, RetrievalSettings, Retriever
+from .retriever import Hit, MovieDoc, QueryFilter, RetrievalSettings, Retriever
 from .search import (
     AGGREGATION_STRATEGIES,
     aggregate_approval,
@@ -33,6 +33,7 @@ __all__ = [
     "MovieDoc",
     "MovieRecord",
     "QdrantStore",
+    "QueryFilter",
     "RetrievalSettings",
     "Retriever",
     "aggregate_approval",

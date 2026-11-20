@@ -28,7 +28,7 @@ def no_jobs(monkeypatch):
 def fake_recommender(monkeypatch):
     """recommend_for_group without Qdrant or the model: one movie, every time."""
 
-    def recommend(query_texts, top_k):
+    def recommend(query_texts, top_k, filters=None):
         movie = MovieRecommendation(id="546554", title="Knives Out", group_score=0.81)
         return RecommendationResponse(top_pick=movie, alternates=[])
 
@@ -118,7 +118,7 @@ def test_job_lines_carry_the_submitting_request_id(log_records, fake_recommender
 
 
 def test_failed_job_is_logged_as_an_error_with_its_ids(log_records, monkeypatch):
-    def crash(query_texts, top_k):
+    def crash(query_texts, top_k, filters=None):
         raise ConnectionError("Qdrant is down")
 
     monkeypatch.setattr(main, "recommend_for_group", crash)

@@ -292,7 +292,7 @@ def test_metric_labels_hold_no_job_ids(metrics_token):
 
 
 def test_a_completed_job_is_counted(monkeypatch):
-    def recommend(query_texts, top_k):
+    def recommend(query_texts, top_k, filters=None):
         movie = MovieRecommendation(id="1", title="Knives Out", group_score=0.8)
         return RecommendationResponse(top_pick=movie, alternates=[])
 
@@ -318,7 +318,7 @@ def test_a_completed_job_is_counted(monkeypatch):
 
     before = completed() or 0.0
     before_fast = fast_and_completed() or 0.0
-    main._run_recommendation_job("job-1", ["a"], 5)
+    main._run_recommendation_job("job-1", ["a"], 5, None)
 
     assert completed() == before + 1
     assert fast_and_completed() == before_fast + 1

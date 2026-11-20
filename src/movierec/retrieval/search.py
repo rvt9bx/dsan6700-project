@@ -11,10 +11,11 @@ import numpy as np
 from movierec.api.schemas import (
     MovieRecommendation,
     ParticipantScore,
+    PickFilters,
     RecommendationResponse,
 )
 from movierec.config import settings
-from movierec.retrieval import Hit, Retriever
+from movierec.retrieval import Hit, QueryFilter, Retriever
 
 # --------------------------------------------------------------------------- aggregation
 AggregationFn = Callable[[Sequence[float]], float]
@@ -160,10 +161,20 @@ def _cosine_similarity_matrix(
     return q_normed @ m_normed.T
 
 
+def _to_query_filters(
+    filters: Sequence[PickFilters] | None, n: int
+) -> list[QueryFilter]:
+    """One QueryFilter per query; no filters sent means no filtering."""
+    if not filters:
+        return [QueryFilter() for _ in range(n)]
+    return [QueryFilter(tuple(f.genres), f.year_min, f.year_max) for f in filters]
+
+
 def recommend_for_group(
     query_texts: list[str],
     top_k: int = 5,
     agg_fn: AggregationFn | str = aggregate_nash,
+    filters: Sequence[PickFilters] | None = None,
 ) -> RecommendationResponse:
     """
     Pool retrieved movies across all participants, compute cosine similarity for
@@ -173,6 +184,8 @@ def recommend_for_group(
         query_texts: One natural-language query per participant.
         top_k: Total movies to return (top_pick + alternates).
         agg_fn: Aggregation callable or strategy name from AGGREGATION_STRATEGIES.
+        filters: Optional genre/year filter per query (same order). Each narrows only
+            that person's own retrieval; pooled movies are scored on similarity alone.
 
     Returns:
         RecommendationResponse with group_score and per-participant individual_scores.
@@ -201,12 +214,21 @@ def recommend_for_group(
 
     # SOLO: single participant needs no pooling, vector transfer, or matrix math
     if len(query_texts) == 1:
-        hits = retriever.search(query_texts[0], limit=top_k)
+        qf = _to_query_filters(filters, 1)[0]
+        hits = retriever.search(
+            query_texts[0],
+            limit=top_k,
+            genres=qf.genres or None,
+            year_min=qf.year_min,
+            year_max=qf.year_max,
+        )
         if not hits:
             return RecommendationResponse(
                 top_pick=MovieRecommendation(
                     id="",
-                    title="No matches found",
+                    title="Nothing matches those filters"
+                    if qf.active
+                    else "No matches found",
                     group_score=0.0,
                 ),
                 alternates=[],
@@ -216,10 +238,12 @@ def recommend_for_group(
 
     # GROUP: embed queries once and retrieve candidates with vectors
     query_vectors = retriever.embed_queries(query_texts)
+    query_filters = _to_query_filters(filters, len(query_texts))
     fetch_limit = max(top_k * 3, 10)
     all_hits_per_participant = retriever.search_vectors(
         query_vectors,
         limit=fetch_limit,
+        filters=query_filters,
         with_vectors=True,
     )
 
@@ -234,10 +258,13 @@ def recommend_for_group(
                 vector_cache[hit.tmdb_id] = hit.vector
 
     if not payload_cache:
+        filtered = any(f.active for f in query_filters)
         return RecommendationResponse(
             top_pick=MovieRecommendation(
                 id="",
-                title="No matches found",
+                title="Nothing matches those filters"
+                if filtered
+                else "No matches found",
                 group_score=0.0,
             ),
             alternates=[],

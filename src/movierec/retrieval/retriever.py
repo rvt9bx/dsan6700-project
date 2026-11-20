@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import dataclass
 from itertools import islice
 
 from loguru import logger
@@ -14,26 +15,58 @@ from .vectorstore import QdrantStore, build_filter, collection_name
 
 # ---------------------------------------------------------------- helpers
 def _chunks(items: Iterable[MovieDoc], size: int) -> Iterator[list[MovieDoc]]:
+    """Yield an iterable of movie documents in batches of the given size.
+
+    Args:
+        items: Documents to divide into batches.
+        size: Maximum number of documents per batch.
+    """
     it = iter(items)
     while chunk := list(islice(it, size)):
         yield chunk
 
 
+# ---------------------------------------------------------------- QueryFilter
+@dataclass(frozen=True)
+class QueryFilter:
+    """One person's metadata filter, applied to their own retrieval only."""
+
+    genres: tuple[str, ...] = ()
+    year_min: int | None = None
+    year_max: int | None = None
+
+    @property
+    def active(self) -> bool:
+        """True if this filter restricts anything."""
+        return (
+            bool(self.genres) or self.year_min is not None or self.year_max is not None
+        )
+
+
 # ---------------------------------------------------------------- Retriever
 class Retriever:
+    """Coordinate movie indexing, embedding, and similarity search."""
+
     def __init__(
         self,
         embedder: EmbeddingBackend,
         store: QdrantStore,
         upsert_batch_size: int = 256,
     ):
+        """Initialize a retriever with an embedding backend and vector store.
+
+        Args:
+            embedder: Backend used to create document and query embeddings.
+            store: Vector store used to index and search documents.
+            upsert_batch_size: Maximum number of documents indexed per batch.
+        """
         self.embedder = embedder
         self.store = store
         self.upsert_batch_size = upsert_batch_size
 
     @classmethod
     def from_settings(cls, settings: RetrievalSettings) -> Retriever:
-        """Build everything from your project settings object."""
+        """Build everything from the project settings object."""
         embedder = Embedder(
             model_name=settings.embed_model,
             cache_dir=settings.embed_cache_dir,
@@ -87,19 +120,29 @@ class Retriever:
         self,
         vectors: Sequence[Sequence[float]],
         limit: int = 10,
-        genres: Sequence[str] | None = None,
-        year_min: int | None = None,
-        year_max: int | None = None,
+        filters: Sequence[QueryFilter] | None = None,
         with_vectors: bool = False,
     ) -> list[list[Hit]]:
-        """Search Qdrant using pre-computed query vectors."""
-        flt = build_filter(genres, year_min, year_max)
-        return [
-            self.store.search(
-                v, limit=limit, query_filter=flt, with_vectors=with_vectors
+        """Search Qdrant using pre-computed query vectors and optional per-vector filters."""
+        if filters is not None and len(filters) != len(vectors):
+            raise ValueError("filters must have one entry per vector")
+
+        results = []
+        for i, vector in enumerate(vectors):
+            query_filter = None
+            if filters is not None:
+                f = filters[i]
+                query_filter = build_filter(f.genres, f.year_min, f.year_max)
+
+            results.append(
+                self.store.search(
+                    vector,
+                    limit=limit,
+                    query_filter=query_filter,
+                    with_vectors=with_vectors,
+                )
             )
-            for v in vectors
-        ]
+        return results
 
     def search(
         self,
@@ -110,14 +153,19 @@ class Retriever:
         year_max: int | None = None,
         with_vectors: bool = False,
     ) -> list[Hit]:
-        """Natural-language query in, ranked movies out."""
+        """Search for movies using a natural-language query and optional metadata filters."""
         vectors = self.embed_queries([query])
+
+        query_filter = QueryFilter(
+            genres=tuple(genres or ()),
+            year_min=year_min,
+            year_max=year_max,
+        )
+
         return self.search_vectors(
             vectors,
             limit=limit,
-            genres=genres,
-            year_min=year_min,
-            year_max=year_max,
+            filters=[query_filter],
             with_vectors=with_vectors,
         )[0]
 
@@ -131,6 +179,7 @@ class Retriever:
         return self.store.healthy() and self.store.exists() and self.store.count() > 0
 
     def count(self) -> int:
+        """Return the number of movies stored in the vector collection."""
         return self.store.count()
 
     def warmup(self) -> None:

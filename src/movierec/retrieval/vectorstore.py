@@ -52,6 +52,8 @@ def build_filter(
 
 
 class QdrantStore:
+    """Manage movie embeddings and metadata in a Qdrant collection."""
+
     def __init__(
         self,
         url: str,
@@ -60,6 +62,15 @@ class QdrantStore:
         client: QdrantClient | None = None,
         timeout: int = 30,
     ):
+        """Initialize a Qdrant connection for the specified collection and vector size.
+
+        Args:
+            url: Qdrant URL, local path, or ":memory:" for an in-memory instance.
+            collection: Name of the collection to use.
+            dim: Expected embedding vector dimension.
+            client: Optional existing Qdrant client.
+            timeout: Connection timeout in seconds.
+        """
         self.collection = collection
         self.dim = dim
         if client is not None:
@@ -75,6 +86,7 @@ class QdrantStore:
 
     # ---- collection management ---------------------------------------
     def exists(self) -> bool:
+        """Return whether the configured collection exists."""
         return self.client.collection_exists(self.collection)
 
     def ensure_collection(self) -> None:
@@ -95,6 +107,7 @@ class QdrantStore:
         self._known_to_exist = True
 
     def _create_payload_indexes(self) -> None:
+        """Create indexes for the payload fields used by filtered searches."""
         # Speeds up filtered search on large collections (no effect in in-memory mode).
         if self._local:
             return
@@ -107,6 +120,7 @@ class QdrantStore:
             )
 
     def _check_dim(self) -> None:
+        """Raise an error if the collection's vector size differs from the configured size."""
         params = self.client.get_collection(self.collection).config.params
         vectors = params.vectors
         size = getattr(vectors, "size", None)
@@ -144,6 +158,7 @@ class QdrantStore:
     def upsert(
         self, docs: Sequence[MovieDoc], vectors: Sequence[Sequence[float]]
     ) -> None:
+        """Insert or update movie documents and their embedding vectors."""
         if len(docs) != len(vectors):
             raise ValueError(f"{len(docs)} docs but {len(vectors)} vectors")
         points = [
@@ -160,6 +175,7 @@ class QdrantStore:
         query_filter: models.Filter | None = None,
         with_vectors: bool = False,
     ) -> list[Hit]:
+        """Return the nearest movie matches for a query vector."""
         self.require_collection()
         result = self.client.query_points(
             self.collection,
@@ -182,6 +198,7 @@ class QdrantStore:
         ]
 
     def count(self) -> int:
+        """Return the exact number of points stored in the collection."""
         return self.client.count(self.collection, exact=True).count
 
     def healthy(self) -> bool:
