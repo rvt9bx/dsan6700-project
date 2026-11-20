@@ -1,0 +1,16 @@
+# Prometheus collects the app's /metrics every 15 seconds and keeps 30 days of history
+# (set in compose.yml), enough for the SLO's 28-day window in docs/SLO.md.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: movierec
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:8080"]             # the app's service name on the Compose network
+    authorization:
+      type: Bearer
+      # Written from METRICS_TOKEN when the container starts (see compose.yml), because
+      # Prometheus's config cannot read environment variables
+      credentials_file: /tmp/metrics_token
