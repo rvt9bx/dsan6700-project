@@ -135,6 +135,7 @@ img.poster { display: block; padding: 0; object-fit: cover; height: auto; }
 .howto .n { width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-size: 12.5px; font-weight: 800; flex-shrink: 0; }
 .ctas { display: flex; flex-direction: column; gap: 4px; }
 .ctas .btn { width: 100%; }
+.last-night { align-self: center; margin-top: -10px; font-size: 14px; }
 .ctas .btn.ghost { height: 44px; box-shadow: none; font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .tagline { font-size: 14px; color: var(--ink-2); text-align: center; }
 .howto.flash li { animation: flash 1.2s ease; }
@@ -345,7 +346,7 @@ textarea.paper:focus { outline: none; box-shadow: inset 0 0 0 2px var(--c, var(-
 .alt .poster { width: 32px; padding: 0; border-radius: 5px; box-shadow: none; flex-shrink: 0; }
 .alt .poster::after, .alt .poster .t, .alt .poster .yr { display: none; }
 .res-ctas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; align-items: center; }
-.res-ctas #watch-btn, .res-ctas .watch-done, .res-ctas .link { grid-column: 1 / -1; }
+.res-ctas #watch-btn, .res-ctas .watch-done, .res-ctas .link, .res-ctas #share-btn { grid-column: 1 / -1; }
 .res-ctas .btn.ghost { padding: 0 14px; }
 .btn[disabled] { cursor: default; background: #2F7A58; }
 .watch-done { font-size: 14.5px; color: var(--ink-2); text-align: center; }
@@ -390,6 +391,7 @@ textarea.paper:focus { outline: none; box-shadow: inset 0 0 0 2px var(--c, var(-
   .ctas .btn.ghost { height: 54px; box-shadow: inset 0 0 0 2px var(--ink); font-size: 16.5px; font-weight: 700; text-decoration: none; }
   .intro-copy .ctas { order: 1; }
   .tagline { order: 2; text-align: left; font-size: 15px; margin-top: -6px; }
+  .last-night { order: 1; align-self: flex-start; margin-top: -8px; padding: 0; }
   .howto { order: 3; margin-top: 18px; }
   .intro-art { order: 0; height: auto; display: flex; flex-direction: column; align-items: center; overflow: visible; background: none; box-shadow: none; border-radius: 0; }
   .ov { width: 100%; max-width: 560px; }
@@ -464,6 +466,7 @@ textarea.paper:focus { outline: none; box-shadow: inset 0 0 0 2px var(--c, var(-
   .intro-copy .ctas .btn { height: calc(64 * var(--u)); padding: 0 calc(36 * var(--u)); border-radius: calc(13 * var(--u)); font-size: calc(22 * var(--u)); }
   .intro-copy .ctas .btn.ghost { height: calc(64 * var(--u)); box-shadow: inset 0 0 0 calc(2.2 * var(--u)) var(--ink); font-size: calc(22 * var(--u)); }
   .tagline { margin-top: calc(14 * var(--u)); font-size: calc(17.6 * var(--u)); }
+  .last-night { margin-top: calc(10 * var(--u)); min-height: 0; font-size: calc(16 * var(--u)); }
   .howto { margin: calc(40 * var(--u)) 0 0; max-width: none; grid-template-columns: calc(182 * var(--u)) calc(168 * var(--u)) calc(188 * var(--u)); justify-content: start; gap: calc(15 * var(--u)); }
   .howto li { height: calc(88 * var(--u)); padding: calc(13 * var(--u)) calc(18 * var(--u)); white-space: nowrap; gap: calc(10 * var(--u)); border-radius: calc(14 * var(--u)); font-size: calc(16.5 * var(--u)); }
   .howto .n { width: calc(30 * var(--u)); height: calc(30 * var(--u)); font-size: calc(15 * var(--u)); }

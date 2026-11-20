@@ -60,6 +60,7 @@ function freshState() {
     texts: [],                // texts[i] = person i's description (kept as they type)
     sealed: [],               // sealed[i] = true once person i has sealed their pick
     noPref: [],               // noPref[i] = true when person i sealed "No preference" (no text)
+    oldTexts: [],             // oldTexts[i] = person i's pick before they chose to change it (hidden until they ask)
     current: 0,               // who is writing now (any order, see nextUnsealed)
     jobId: null,              // the job the API is running for this group
     results: null,            // {movies, members}, built by toResults()
@@ -72,6 +73,9 @@ let state = freshState();
 
 const MAX_NAME = 20;          // characters allowed in a name
 const MAX_PICK = 300;         // characters allowed in a description
+const LAST_NIGHT_KEY = 'eenie:lastNight';  // where this device remembers the last group and picks
+// Phones get the Share menu (Messages, WhatsApp, ...); laptops copy the text instead.
+const CAN_SHARE = !!navigator.share && window.matchMedia('(pointer: coarse)').matches;
 
 // Shortcuts: $('#id') finds one element on the page, $$('.class') finds all matches.
 const $ = (sel) => document.querySelector(sel);
@@ -131,6 +135,7 @@ function show(screen) {
   $('#announce').hidden = screen !== 'intro';
   $('#band').hidden = screen !== 'intro';
   document.body.classList.toggle('is-intro', screen === 'intro');
+  if (screen === 'intro') renderLastNight();
   renderNav(screen);
   window.scrollTo(0, 0);
 }
@@ -208,6 +213,7 @@ function removePerson(i) {
   state.names.splice(i, 1);
   state.names.push('');
   state.texts.splice(i, 1);
+  state.oldTexts.splice(i, 1);
   state.sealed.splice(i, 1);
   state.noPref.splice(i, 1);
   state.size -= 1;
@@ -311,6 +317,7 @@ function showInput() {
   $('#input-title').textContent = solo ? 'Your pick' : `${cur.name}'s turn`;
   $('#input-sub').textContent = solo ? 'Describe the movie you want tonight.' : 'Everyone else, look away.';
   $('#pick-text').value = cur.text;
+  $('#old-pick').hidden = !state.oldTexts[state.current];
   $('#pick-text').placeholder = PLACEHOLDERS[state.current % PLACEHOLDERS.length];
   $('#pick-error').hidden = true;
   renderCount();
@@ -422,6 +429,7 @@ function seal(noPref = false) {
   if (!noPref && !text) { $('#pick-error').hidden = false; return; }
   state.texts[state.current] = text;
   state.noPref[state.current] = noPref;
+  state.oldTexts[state.current] = '';
 
   if (state.mode === 'solo') return submitPicks();
 
@@ -434,10 +442,119 @@ function seal(noPref = false) {
   renderEnvelopes();
   show('sealed');
   setTimeout(() => {
-    if (next === -1) return submitPicks();
+    if (next === -1) return showAllSealed();
     state.current = next;
     startTurn();
   }, 1300);
+}
+
+/**
+ * Shows "Everyone's sealed!" once the last pick is in: one last chance for
+ * anyone to change theirs before the search starts (a button per person),
+ * and "Find our movie" to start it.
+ */
+function showAllSealed() {
+  renderEnvelopes();
+  $('#change-list').innerHTML = people().map((p) =>
+    `<button class="swap" data-change="${p.i}">${avatar(p)}${escapeHtml(p.name)}</button>`).join('');
+  show('allsealed');
+}
+
+/**
+ * Opens a person's turn again so they can change their pick. The box starts
+ * empty, so nobody nearby sees what they wrote before; "Show what I wrote"
+ * and "Keep my old pick" bring it back.
+ * @param {number} i the person's index
+ */
+function changePick(i) {
+  if (state.texts[i]) state.oldTexts[i] = state.texts[i];
+  state.texts[i] = '';
+  state.sealed[i] = false;
+  state.current = i;
+  showInput();
+}
+
+// ---------- 4b. LAST NIGHT (saved on this device only) ----------
+
+/**
+ * Remembers who took part and what they wrote, on this device only (the
+ * browser's localStorage; nothing is sent anywhere), so next time "Use last
+ * group" fills them in. Called once the results are in.
+ */
+function saveLastNight() {
+  const saved = { mode: state.mode, size: state.size, names: state.names, texts: people().map((p) => p.text) };
+  try { localStorage.setItem(LAST_NIGHT_KEY, JSON.stringify(saved)); } catch { /* private window: skip */ }
+}
+
+/** @returns {object|null} what saveLastNight() saved, or null if nothing (or storage is blocked) */
+function loadLastNight() {
+  try { return JSON.parse(localStorage.getItem(LAST_NIGHT_KEY)) || null; } catch { return null; }
+}
+
+/**
+ * Shows "Use last group: Ana, Ben, Cy" (or "Use my last pick") on the intro,
+ * when this device has a saved night.
+ */
+function renderLastNight() {
+  const last = loadLastNight();
+  $('#last-night').hidden = !last;
+  if (!last) return;
+  const names = last.names.slice(0, last.size).map((n, i) => n.trim() || `Person ${i + 1}`);
+  $('#last-night').textContent = last.mode === 'solo' ? 'Use my last pick' : `Use last group: ${names.join(', ')}`;
+}
+
+/**
+ * Starts a new night with the saved group: same names, and everyone's old pick
+ * waiting behind "Show what I wrote" / "Keep my old pick" (their box still
+ * starts empty, so nobody sees anyone else's).
+ */
+function useLastNight() {
+  const last = loadLastNight();
+  if (!last) return;
+  state = freshState();
+  state.mode = last.mode;
+  state.size = last.size;
+  state.names = last.names;
+  state.oldTexts = last.texts;
+  if (state.mode === 'solo') return startTurn();
+  renderSetup();
+  show('start');
+}
+
+/**
+ * The text that Share / Copy sends: the movie in front and the next two.
+ * @returns {string}
+ */
+function shareText() {
+  const { movies } = state.results;
+  const pick = movies[state.shown];
+  const name = (m) => (m.year ? `${m.title} (${m.year})` : m.title);
+  const others = movies.filter((m) => m !== pick).slice(0, 2).map(name);
+  return [
+    `🍿 Tonight: ${name(pick)}`,
+    others.length ? `Also close: ${others.join(', ')}` : '',
+    `Picked with Eenie Meenie Movies: ${location.origin}`,
+  ].filter(Boolean).join('\n');
+}
+
+/**
+ * Opens the phone's Share menu with shareText(), or copies it on a laptop
+ * (the button says "Copied!" for 2 seconds). If copying is blocked, shows the
+ * text in a box to copy by hand.
+ */
+async function sharePick() {
+  const text = shareText();
+  if (CAN_SHARE) {
+    try { await navigator.share({ text }); } catch { /* they closed the menu */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    $('#share-btn').textContent = 'Copied!';
+    setTimeout(() => { $('#share-btn').textContent = 'Copy to share'; }, 2000);
+  } catch {
+    window.prompt('Copy this:', text);
+  }
 }
 
 // ---------- 5. API (async job pattern) ----------
@@ -487,6 +604,7 @@ async function submitPicks() {
     state.watchedId = null;
     renderResults();
     show('results');
+    saveLastNight();
   } catch (err) {
     console.error(err);
     $('#load-busy').hidden = true;
@@ -833,6 +951,9 @@ document.addEventListener('click', (e) => {
   const removeBtn = e.target.closest('[data-remove]');
   if (removeBtn) { removePerson(Number(removeBtn.dataset.remove)); return; }
 
+  const changeBtn = e.target.closest('[data-change]');
+  if (changeBtn) { changePick(Number(changeBtn.dataset.change)); return; }
+
   const swapBtn = e.target.closest('[data-current]');
   if (swapBtn) { state.current = Number(swapBtn.dataset.current); startTurn(); return; }
 
@@ -855,8 +976,10 @@ document.addEventListener('click', (e) => {
       $('#howto').scrollIntoView({ behavior: 'smooth', block: 'center' });
       $('#howto').classList.remove('flash'); void $('#howto').offsetWidth; $('#howto').classList.add('flash');
       break;
-    case 'start-group': state.mode = 'group'; state.texts = []; state.sealed = []; state.noPref = []; renderSetup(); show('start'); break;
-    case 'start-solo': state.mode = 'solo'; state.texts = []; state.sealed = []; state.noPref = []; state.current = 0; startTurn(); break;
+    case 'start-group': state.mode = 'group'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; renderSetup(); show('start'); break;
+    case 'start-solo': state.mode = 'solo'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; state.current = 0; startTurn(); break;
+    case 'last-night': useLastNight(); break;
+    case 'share': sharePick(); break;
     case 'setup': renderSetup(); show('start'); break;
     case 'size-down':
       // The person dropped off the end takes their pick with them.
@@ -868,7 +991,15 @@ document.addEventListener('click', (e) => {
     case 'seal': seal(); break;
     case 'no-pref': seal(true); break;
     case 'retry': submitPicks(); break;
-    case 'edit': state.sealed = []; state.current = 0; state.revealed = -1; startTurn(); break;
+    case 'edit':
+      // Everyone writes again, each starting from an empty box (#36)
+      if (state.mode === 'group') people().forEach((p) => { if (p.text) state.oldTexts[p.i] = p.text; state.texts[p.i] = ''; });
+      state.sealed = []; state.current = 0; state.revealed = -1; startTurn(); break;
+    case 'find': submitPicks(); break;
+    case 'show-old':
+      $('#pick-text').value = state.texts[state.current] = state.oldTexts[state.current];
+      $('#old-pick').hidden = true; renderCount(); $('#pick-text').focus(); break;
+    case 'keep-old': $('#pick-text').value = state.oldTexts[state.current]; seal(); break;
     case 'another': showMovie((state.shown + 1) % state.results.movies.length); break;
     case 'watch': logWatch(); break;
     case 'restart':
@@ -938,4 +1069,5 @@ function fitZoom() {
 addEventListener('resize', fitZoom);
 fitZoom();
 
+if (CAN_SHARE) $('#share-btn').textContent = 'Share';
 show('intro');

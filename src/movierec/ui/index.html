@@ -38,6 +38,7 @@
         <button class="btn" data-action="start-group">Start a group night <span aria-hidden="true">&rarr;</span></button>
         <button class="btn ghost" data-action="start-solo">Just me</button>
       </div>
+      <button class="link last-night" data-action="last-night" id="last-night" hidden><!-- filled by renderLastNight() --></button>
       <p class="tagline">One device. Private picks. No sign-up.</p>
     </div>
     <!-- Decorative picture: three moods overlap and the movie sits in the middle.
@@ -126,6 +127,7 @@
         <textarea id="pick-text" class="paper" rows="5" maxlength="300"></textarea>
         <span id="pick-count" class="count" aria-hidden="true"></span>
       </div>
+      <p id="old-pick" class="small muted" hidden>Starting fresh, so nobody sees your old pick. <button class="link" data-action="show-old">Show what I wrote</button> <button class="link" data-action="keep-old">Keep my old pick</button></p>
       <p id="pick-error" class="error" hidden>Write a few words first, even just a movie you love.</p>
       <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
       <div class="spacer"></div>
@@ -156,6 +158,17 @@
     <h1>Sealed. Nobody can peek.</h1>
     <p class="sub" id="sealed-sub"></p>
     <div class="envelopes"></div>
+  </section>
+
+  <!-- 5b. ALL SEALED: a last chance to change a pick before the search -->
+  <section id="screen-allsealed" class="screen narrow center" hidden>
+    <div class="envelopes"><!-- filled by renderEnvelopes() --></div>
+    <h1>Everyone's sealed!</h1>
+    <p class="sub">Changed your mind? Tap your name to write a new pick. Nobody else's pick is shown.</p>
+    <div class="swap-list" id="change-list"><!-- filled by showAllSealed() --></div>
+    <div class="actions">
+      <button class="btn" data-action="find">Find our movie</button>
+    </div>
   </section>
 
   <!-- 6. LOADING (job is running on the backend) -->
@@ -201,6 +214,7 @@
         </p>
         <button class="btn ghost" data-action="another" id="another-btn">Show another pick</button>
         <button class="btn ghost" data-action="edit">Edit our picks</button>
+        <button class="btn ghost" data-action="share" id="share-btn">Copy to share</button>
         <button class="link" data-action="restart">New movie night</button>
       </div>
     </div>
