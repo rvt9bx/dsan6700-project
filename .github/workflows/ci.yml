@@ -52,8 +52,52 @@ jobs:
           ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           git /repo --redact --verbose
 
+  # Builds the image only after the tests pass, smoke-tests it, and publishes it to the GitHub
+  # Container Registry under the commit's hash. Pull requests build and test but never publish:
+  # only code merged to main reaches the registry
+  image:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Build the image
+        # The source label links the package to this repository on GitHub
+        run: >-
+          docker build
+          --label org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          --label org.opencontainers.image.revision=${{ github.sha }}
+          -t "$IMAGE" .
+
+      - name: Smoke-test the image
+        # /health checks no dependencies, so the image can be tested alone, without Qdrant
+        run: |
+          docker run -d --name smoke -p 8080:8080 "$IMAGE"
+          for attempt in $(seq 1 30); do
+            curl -fs http://localhost:8080/health | grep -q '"ok"' && break
+            sleep 2
+          done
+          curl -fsS http://localhost:8080/health | grep -q '"ok"' || { docker logs smoke; exit 1; }
+          curl -fsS -o /dev/null http://localhost:8080/ || { docker logs smoke; exit 1; }
+          echo "Smoke test passed: /health is ok and the UI loads"
+
+      - name: Log in to the GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Publish the tested image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push "$IMAGE"
+
 # Sources:
 # https://docs.github.com/en/actions/tutorials/create-an-example-workflow#viewing-the-activity-for-a-workflow-run
 # https://github.com/marketplace?type=actions
 # https://github.com/gitleaks/gitleaks
+# https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry
 # other github actions documentation
