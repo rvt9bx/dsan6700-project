@@ -5,6 +5,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from movierec.api import main
+from movierec.api.schemas import (
+    MovieRecommendation,
+    PickFilters,
+    RecommendationResponse,
+)
 
 client = TestClient(main.app)
 
@@ -98,12 +103,12 @@ def test_results_of_a_completed_job_are_200():
 
 
 def test_failed_job_is_500_without_leaking_the_exception(monkeypatch):
-    def crash(query_texts, top_k):
+    def crash(query_texts, top_k, filters=None):
         raise ConnectionError("secret-internal-host:6333 refused")
 
     monkeypatch.setattr(main, "recommend_for_group", crash)
     add_job("pending")
-    main._run_recommendation_job("job-1", ["anything"], 5)
+    main._run_recommendation_job("job-1", ["anything"], 5, None)
 
     status = client.get("/recommend/job-1/status").json()
     results = client.get("/recommend/job-1/results")
@@ -113,6 +118,24 @@ def test_failed_job_is_500_without_leaking_the_exception(monkeypatch):
     for message in (status["error"], results.json()["detail"]):
         assert "secret-internal-host" not in message
         assert "try again" in message
+
+
+def test_job_passes_its_filters_to_the_recommender(monkeypatch):
+    seen = {}
+
+    def recommend(query_texts, top_k, filters=None):
+        seen["filters"] = filters
+        movie = MovieRecommendation(id="1", title="Knives Out", group_score=0.8)
+        return RecommendationResponse(top_pick=movie, alternates=[])
+
+    monkeypatch.setattr(main, "recommend_for_group", recommend)
+    add_job("pending")
+    filters = [PickFilters(genres=["Mystery"], year_min=1990)]
+
+    main._run_recommendation_job("job-1", ["a"], 5, filters)
+
+    assert seen["filters"] == filters
+    assert main.jobs["job-1"]["status"] == "completed"
 
 
 # ---- input validation: the caller's mistake is a 4xx that says what, never a 5xx
@@ -140,6 +163,32 @@ def test_valid_request_is_accepted_with_a_job_id(no_background_jobs):
     assert response.json()["job_id"] in main.jobs
 
 
+def test_request_with_filters_hands_them_to_the_job(no_background_jobs):
+    body = {
+        "query_texts": ["a cozy mystery", "something funny"],
+        "filters": [{"genres": ["Mystery"], "year_min": 1990}, {}],
+    }
+
+    response = client.post("/recommend", json=body)
+
+    assert response.status_code == 202
+    mystery, anything = no_background_jobs[0]["args"][-1]
+    assert mystery.genres == ["Mystery"]
+    assert mystery.year_min == 1990
+    assert anything.genres == []
+    assert anything.year_min is None
+
+
+def test_filters_must_match_query_texts_one_to_one(no_background_jobs):
+    body = {"query_texts": ["a", "b"], "filters": [{}]}
+
+    response = client.post("/recommend", json=body)
+
+    assert response.status_code == 422
+    assert "filters" in response.json()["detail"][0]["msg"]
+    assert no_background_jobs == []
+
+
 @pytest.mark.parametrize(
     ("body", "problem_field"),
     [
@@ -151,6 +200,12 @@ def test_valid_request_is_accepted_with_a_job_id(no_background_jobs):
         ({"query_texts": ["a"], "top_k": 0}, "top_k"),
         ({"query_texts": ["a"], "top_k": 21}, "top_k"),
         ({"query_texts": "not a list"}, "query_texts"),
+        ({"query_texts": ["a"], "filters": [{"genres": ["Comedyy"]}]}, "genres"),
+        ({"query_texts": ["a"], "filters": [{"year_min": 1500}]}, "year_min"),
+        (
+            {"query_texts": ["a"], "filters": [{"year_min": 2000, "year_max": 1990}]},
+            "filters",
+        ),
     ],
 )
 def test_bad_recommend_request_is_422_naming_the_field(

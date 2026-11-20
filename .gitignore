@@ -155,3 +155,6 @@ models/
 
 # Usage event logs
 logs/
+
+# Local Qdrant
+qdrant/

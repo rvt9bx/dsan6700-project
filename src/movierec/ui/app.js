@@ -61,6 +61,7 @@ function freshState() {
     sealed: [],               // sealed[i] = true once person i has sealed their pick
     noPref: [],               // noPref[i] = true when person i sealed "No preference" (no text)
     oldTexts: [],             // oldTexts[i] = person i's pick before they chose to change it (hidden until they ask)
+    filters: [],              // filters[i] = {genres, yearMin, yearMax} for person i
     current: 0,               // who is writing now (any order, see nextUnsealed)
     jobId: null,              // the job the API is running for this group
     results: null,            // {movies, members}, built by toResults()
@@ -99,6 +100,7 @@ function people() {
       color: COLORS[i],
       text: state.texts[i] || '',
       noPref: Boolean(state.noPref[i]),
+      filters: filterOf(i),
     };
   });
 }
@@ -216,6 +218,7 @@ function removePerson(i) {
   state.oldTexts.splice(i, 1);
   state.sealed.splice(i, 1);
   state.noPref.splice(i, 1);
+  state.filters.splice(i, 1);
   state.size -= 1;
   renderSetup();
 }
@@ -302,6 +305,50 @@ function startTurn() {
   show('handoff');
 }
 
+// ---------- FILTERS (each person's own genre and year filters) ----------
+// A filter narrows only that person's own search. Everyone's candidates are then
+// pooled and scored on how well they match each person's description.
+const GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama',
+  'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 'Romance',
+  'Science Fiction', 'Thriller', 'War', 'Western'];   // keep in sync with ALLOWED_GENRES in schemas.py
+/** @returns {{genres: string[], yearMin: number|null, yearMax: number|null}} person i's filters (empty if never set) */
+function filterOf(i) { return state.filters[i] || { genres: [], yearMin: null, yearMax: null }; }
+/** Merges changes into the current person's filters and refreshes the summary line. */
+function setFilter(patch) {
+  state.filters[state.current] = { ...filterOf(state.current), ...patch };
+  renderFilterSummary();
+}
+/** @returns {string|null} what is wrong with a year range, or null if it is fine */
+function yearProblem(f) {
+  const bad = (y) => y != null && (y < 1888 || y > 2100);
+  if (bad(f.yearMin) || bad(f.yearMax)) return 'Use years between 1888 and 2100.';
+  if (f.yearMin != null && f.yearMax != null && f.yearMin > f.yearMax) return '"From" can\'t be later than "To".';
+  return null;
+}
+/** Updates "Any genre, any year" (or the chosen genres and years) next to the Filters heading. */
+function renderFilterSummary() {
+  const f = filterOf(state.current);
+  const parts = [];
+  if (f.genres.length) parts.push(f.genres.join(', '));
+  if (f.yearMin != null || f.yearMax != null) parts.push(`${f.yearMin ?? '…'}–${f.yearMax ?? '…'}`);
+  $('#filter-summary').textContent = parts.join(' · ') || 'Any genre, any year';
+}
+/** Draws the current person's filters, so nobody sees the previous person's. */
+function renderFilters() {
+  const f = filterOf(state.current);
+  $('#genre-chips').innerHTML = GENRES.map((g) =>
+    `<button type="button" class="chip" data-genre="${g}" aria-pressed="${f.genres.includes(g)}">${g}</button>`).join('');
+  $('#year-min').value = f.yearMin ?? '';
+  $('#year-max').value = f.yearMax ?? '';
+  $('#year-error').hidden = true;
+  $('#filters').open = f.genres.length > 0 || f.yearMin != null || f.yearMax != null;
+  renderFilterSummary();
+}
+/** @returns {object} one person's filters in the shape the API expects */
+function toApiFilter(p) {
+  return { genres: p.filters.genres, year_min: p.filters.yearMin, year_max: p.filters.yearMax };
+}
+
 /**
  * Shows the input screen for the current person: their avatar and title
  * ("Person 2's turn"), the text box, idea suggestions (or the mood map pin),
@@ -321,6 +368,7 @@ function showInput() {
   $('#pick-text').placeholder = PLACEHOLDERS[state.current % PLACEHOLDERS.length];
   $('#pick-error').hidden = true;
   renderCount();
+  renderFilters();
   $('#seal-btn').textContent = solo ? 'Find my movie' : 'Seal my pick';
   // Someone has to describe a movie, so the last person can't also pass.
   $('#nopref-btn').hidden = solo || all.every((p) => p.i === state.current || (state.sealed[p.i] && p.noPref));
@@ -427,6 +475,15 @@ function movePin(text, color) {
 function seal(noPref = false) {
   const text = noPref ? '' : $('#pick-text').value.trim();
   if (!noPref && !text) { $('#pick-error').hidden = false; return; }
+  if (!noPref) {
+    const problem = yearProblem(filterOf(state.current));
+    if (problem) {
+      $('#year-error').textContent = problem;
+      $('#year-error').hidden = false;
+      $('#filters').open = true;
+      return;
+    }
+  }
   state.texts[state.current] = text;
   state.noPref[state.current] = noPref;
   state.oldTexts[state.current] = '';
@@ -589,8 +646,10 @@ async function submitPicks() {
   try {
     const members = people();
     const mine = state;
+    const writers = members.filter((p) => !p.noPref);
     const { job_id } = await startJob({
-      query_texts: members.filter((p) => !p.noPref).map((p) => p.text),
+      query_texts: writers.map((p) => p.text),
+      filters: writers.map(toApiFilter),
       top_k: TOP_K,
     });
     if (state !== mine) return;   // they started a new movie night while waiting
@@ -969,6 +1028,16 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  const genreBtn = e.target.closest('[data-genre]');
+  if (genreBtn) {
+    const g = genreBtn.dataset.genre;
+    const cur = filterOf(state.current).genres;
+    const next = cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g];
+    setFilter({ genres: next });
+    genreBtn.setAttribute('aria-pressed', next.includes(g));
+    return;
+  }
+
   const action = e.target.closest('[data-action]')?.dataset.action;
   switch (action) {
     case 'go-intro': show('intro'); break;
@@ -976,14 +1045,14 @@ document.addEventListener('click', (e) => {
       $('#howto').scrollIntoView({ behavior: 'smooth', block: 'center' });
       $('#howto').classList.remove('flash'); void $('#howto').offsetWidth; $('#howto').classList.add('flash');
       break;
-    case 'start-group': state.mode = 'group'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; renderSetup(); show('start'); break;
-    case 'start-solo': state.mode = 'solo'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; state.current = 0; startTurn(); break;
+    case 'start-group': state.mode = 'group'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; state.filters = []; renderSetup(); show('start'); break;
+    case 'start-solo': state.mode = 'solo'; state.texts = []; state.oldTexts = []; state.sealed = []; state.noPref = []; state.filters = []; state.current = 0; startTurn(); break;
     case 'last-night': useLastNight(); break;
     case 'share': sharePick(); break;
     case 'setup': renderSetup(); show('start'); break;
     case 'size-down':
       // The person dropped off the end takes their pick with them.
-      if (state.size > 2) { state.texts[state.size - 1] = ''; state.sealed[state.size - 1] = false; state.noPref[state.size - 1] = false; }
+      if (state.size > 2) { state.texts[state.size - 1] = ''; state.sealed[state.size - 1] = false; state.noPref[state.size - 1] = false; state.filters[state.size - 1] = undefined; }
       state.size = Math.max(2, state.size - 1); renderSetup(); break;
     case 'size-up': state.size = Math.min(6, state.size + 1); renderSetup(); break;
     case 'begin': beginPicks(); break;
@@ -1018,6 +1087,13 @@ $('#pick-text').addEventListener('input', (e) => {
   $('#pick-error').hidden = true;
   renderCount();
 });
+
+// Typing a year saves it to the current person's filters and clears the error.
+['#year-min', '#year-max'].forEach((sel) => $(sel).addEventListener('input', () => {
+  const read = (s) => { const v = parseInt($(s).value, 10); return Number.isFinite(v) ? v : null; };
+  setFilter({ yearMin: read('#year-min'), yearMax: read('#year-max') });
+  $('#year-error').hidden = true;
+}));
 
 /**
  * Records which movie the group chose when they tap "We're watching ...", then

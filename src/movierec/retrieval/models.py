@@ -28,6 +28,7 @@ class Hit:
     tmdb_id: int
     score: float
     payload: dict[str, Any]
+    vector: list[float] | None = None
 
 
 class RetrievalSettings(Protocol):
