@@ -76,9 +76,65 @@ services:
       qdrant:
         condition: service_healthy
 
+  # Collects the app's /metrics every 15 s (monitoring/prometheus/prometheus.yml). Its config can't read
+  # environment variables, so the entrypoint writes METRICS_TOKEN to a file the config points at.
+  # No depends_on app: Prometheus starts fine without it and shows the target as down until it is up
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        printf '%s' "$$METRICS_TOKEN" > /tmp/metrics_token &&
+        exec /bin/prometheus
+        --config.file=/etc/prometheus/prometheus.yml
+        --storage.tsdb.path=/prometheus
+        --storage.tsdb.retention.time=30d
+    environment:
+      METRICS_TOKEN: ${METRICS_TOKEN:-}          # from .env; must match the app's
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus             # 30 days of history, enough for the 28-day SLO window
+    ports:
+      - "127.0.0.1:9090:9090"                   # this machine only; reach it over an SSH tunnel
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Dashboards. The data source and the dashboard are files in monitoring/grafana, loaded at startup
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}   # set it in .env on the instance
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/movierec.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana           # users and settings survive restarts
+    ports:
+      - "127.0.0.1:3000:3000"                   # this machine only; reach it over an SSH tunnel
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   models:
   logs:
   qdrant-storage:
+  prometheus-data:
+  grafana-data:
   caddy-data:
   caddy-config:

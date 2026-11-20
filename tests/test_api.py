@@ -17,9 +17,9 @@ def no_jobs(monkeypatch):
 def add_job(status, result=None, error=None):
     main.jobs["job-1"] = {
         "status": status,
-        "request": {},
         "result": result,
         "error": error,
+        "finished_at": None,
     }
 
 

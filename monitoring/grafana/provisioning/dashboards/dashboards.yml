@@ -1,0 +1,11 @@
+# Load every dashboard JSON in /etc/grafana/dashboards (monitoring/grafana/dashboards in the
+# repo). Edit the JSON in git, not in the Grafana UI: UI changes are not saved back.
+apiVersion: 1
+
+providers:
+  - name: movierec
+    folder: Eenie Meenie Movies
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

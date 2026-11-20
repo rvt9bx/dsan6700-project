@@ -9,11 +9,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import logging
 from collections.abc import Iterable
 from itertools import islice
 from pathlib import Path
 
+from loguru import logger
+
+from movierec.logging_setup import configure_logging
 from movierec.retrieval import MovieDoc, Retriever
 from movierec.retrieval.data import (
     MovieRecord,
@@ -21,8 +23,6 @@ from movierec.retrieval.data import (
     movie_to_payload,
     movie_to_text,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _load_settings():
@@ -53,9 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
+    configure_logging(log_file=False)
 
     settings = _load_settings()
     data_path = args.parquet or Path(settings.movies_path)
@@ -74,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
     indexed = retriever.index(docs(), skip_existing=not args.reindex)
-    logger.info(f"Finished ingestion, {indexed} in collection")
+    logger.bind(total=indexed).info("Finished ingestion")
     return 0
 
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import json
-import logging
 import math
 import re
 from collections.abc import Iterator
@@ -12,8 +11,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
-
-logger = logging.getLogger(__name__)
 
 REQUIRED_COLUMNS = ("tmdb_id", "title", "overview")
 
