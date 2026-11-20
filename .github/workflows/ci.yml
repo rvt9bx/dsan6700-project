@@ -1,27 +1,29 @@
 name: ci
-run-name: ${{ github.actor }} is doing continuous integration validation. 
+run-name: ${{ github.actor }} is doing continuous integration validation.
 on: [push, pull_request]
+# Every action is pinned to a commit hash (the tag it came from is in the comment), so a moved
+# or deleted tag cannot change what runs here
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
-      
-      - name: Install uv 
-        uses: astral-sh/setup-uv@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
         with:
-          version: "latest"
+          version: "0.11.6" # same uv as the Dockerfile
 
       - name: Run uv sync
         run: uv sync --frozen --all-extras
 
-      - name: Run ruff linting and formatting 
+      - name: Run ruff linting and formatting
         run: |
           uv run ruff check
           uv run ruff format --check
@@ -32,7 +34,26 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository with full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0 # gitleaks scans every commit, not just the latest
+
+      - name: Scan Git history for secrets with gitleaks
+        # The official image, pinned by digest; --redact keeps any secret it finds out of the log.
+        # Git in the container must trust /repo, which another user owns: without safe.directory it
+        # reads no commits, and gitleaks still reports "no leaks found"
+        run: >-
+          docker run --rm -v "$PWD:/repo"
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo
+          ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git /repo --redact --verbose
+
 # Sources:
 # https://docs.github.com/en/actions/tutorials/create-an-example-workflow#viewing-the-activity-for-a-workflow-run
 # https://github.com/marketplace?type=actions
+# https://github.com/gitleaks/gitleaks
 # other github actions documentation
