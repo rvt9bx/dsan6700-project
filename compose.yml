@@ -15,8 +15,9 @@ services:
     environment:
       <<: *movierec-env
       LOG_DIR: /logs
+      FORWARDED_ALLOW_IPS: "*"                  # trust Caddy's X-Forwarded-For, so rate limits are per real user
     ports:
-      - "8080:8080"                             # the only port we publish
+      - "${APP_BIND:-0.0.0.0}:8080:8080"        # APP_BIND=127.0.0.1 on the instance: from outside, only Caddy answers
     volumes:
       - models:/models                          # embedding weights, downloaded once, shared with ingest
       - logs:/logs                              # usage events survive restarts and rebuilds
@@ -35,6 +36,26 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  # Reverse proxy: serves the app over HTTPS at MOVIEREC_DOMAIN and redirects http to https (see Caddyfile).
+  # Started only where COMPOSE_PROFILES=proxy, as on the instance; locally, use the app on port 8080
+  caddy:
+    image: caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    profiles: [proxy]
+    ports:
+      - "80:80"                                 # http, only to redirect to https and for Let's Encrypt's check
+      - "443:443"
+      - "443:443/udp"                           # HTTP/3
+    environment:
+      MOVIEREC_DOMAIN: ${MOVIEREC_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data                        # certificates survive restarts, so Caddy doesn't hit Let's Encrypt's limits
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
     restart: unless-stopped
 
   # One-shot job: embeds the movie Parquet into Qdrant, then exits. Not started by `docker compose up`;
@@ -115,3 +136,5 @@ volumes:
   qdrant-storage:
   prometheus-data:
   grafana-data:
+  caddy-data:
+  caddy-config:
