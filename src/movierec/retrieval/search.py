@@ -69,21 +69,6 @@ def _hits_to_recommendations(hits: list[Hit]) -> list[MovieRecommendation]:
     return recs
 
 
-# --------------------------------------------------------------------------- public API (placeholder for future searchbar)
-def search_movies(query_text: str, top_k: int = 5) -> list[MovieRecommendation]:
-    """Placeholder for future movie searchbar. Returns mock data."""
-    # TODO: Replace with real retrieval when searchbar UI is added
-    return [
-        MovieRecommendation(
-            id="101",
-            title="Stub Movie: The Lion King",
-            group_score=0.95,
-            individual_scores=[ParticipantScore(participant_index=0, score=0.95)],
-            overview="The circle of life...",
-        )
-    ]
-
-
 # --------------------------------------------------------------------------- core group recommendation
 def recommend_for_group(
     query_texts: list[str],

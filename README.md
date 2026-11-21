@@ -57,7 +57,6 @@ The other endpoints:
 curl -s http://localhost:8080/health
 curl -s http://localhost:8080/ready
 curl -s -X POST http://localhost:8080/events/watch -H 'Content-Type: application/json' -d '{"job_id": "test", "movie_id": "546554"}' -w '%{http_code}\n'
-curl -s 'http://localhost:8080/movies/search?q=heist'
 curl -s http://localhost:8080/ -o /dev/null -w '%{http_code}\n'
 ```
 
@@ -81,7 +80,7 @@ Add `-i` to any command to see the status code and headers. What each status cod
 | 411  | A body was sent without a `Content-Length`                      | every `POST`                                   |
 | 413  | The body is over `MAX_BODY_BYTES` (32 KB)                       | every `POST`                                   |
 | 415  | The body is not `Content-Type: application/json`                | every `POST`                                   |
-| 422  | The request was invalid; `detail` names the field and the rule  | `POST /recommend`, `/events/watch`, `/movies/search` |
+| 422  | The request was invalid; `detail` names the field and the rule  | `POST /recommend`, `/events/watch`             |
 | 429  | Too many recommendations from you; wait `Retry-After` seconds   | `POST /recommend`                              |
 | 500  | The job failed on the server; the details are in the app's log  | `/recommend/{job_id}/results`, any unexpected error |
 | 503  | `/ready`: Qdrant is unreachable or the movies are not loaded. `POST /recommend`: too many jobs running; wait `Retry-After` seconds | `/ready`, `POST /recommend` |
@@ -148,7 +147,7 @@ which is easier to read during development; `app.jsonl` is JSON either way.
 ## Monitoring
 
 Prometheus collects the app's `/metrics` every 15 seconds and keeps 30 days of history. Grafana shows it on the
-**Eenie Meenie Movies** dashboard: the [SLO](docs/SLO.md) and its error budget, requests and errors per route,
+**Eenie Meenie Movies** dashboard: the SLO and its error budget, requests and errors per route,
 response times, job duration and outcomes, requests turned away by the limits, and recommendation quality (the top
 pick's score and how often a search finds nothing).
 
@@ -175,6 +174,42 @@ adding it.
 
 The data source and dashboard are files in `monitoring/grafana/`, loaded when Grafana starts. Edit the JSON there
 rather than in the Grafana UI, which does not save changes back to git.
+
+## Load testing
+
+`loadtest/locustfile.py` simulates groups using the web page with [Locust](https://locust.io/): each simulated user
+opens the page, submits 1 to 6 descriptions, waits out `Retry-After` when the server is busy, polls the job every
+second (giving up after a minute, like the page), and reads the results, then waits 10 to 30 seconds and goes again.
+Locust lists each request, plus one **FLOW "movie night (submit to results)"** line: the whole wait a person sees.
+
+Run it from your laptop, not the instance, so Locust doesn't compete with the app for the instance's CPU:
+
+```bash
+uv sync --group loadtest
+uv run locust -f loadtest/locustfile.py --host https://<instance-hostname>
+```
+
+Open <http://localhost:8089>, enter the number of users (5 to 10 is a handful of groups) and how many to add per
+second (1), and start. Watch the Grafana dashboard (see [Monitoring](#monitoring)) at the same time, set to the last
+15 minutes: Locust shows what the users saw, and Grafana shows what the server did.
+
+All Locust users come from your laptop's address, so they share one rate limit and most submissions get a 429 after
+the first five. That is a fair test of the limits. To measure how much load the app itself can take, raise the
+limits for the test in the instance's `.env`, then remove the lines afterwards (`docker compose up -d` after each
+change):
+
+```bash
+RECOMMEND_BURST=1000
+RECOMMEND_RATE_PER_MINUTE=1000
+```
+
+Every request id starts with `locust-`, so load-test lines can be found, or left out, in the logs:
+
+```bash
+docker compose exec app cat /logs/app.jsonl | jq -c 'select(.request_id | startswith("locust-")) | select(.level == "ERROR")'
+```
+
+The simulated users never tap "We're watching ...", so the click counts stay real.
 
 ## Deploying on Jetstream2
 

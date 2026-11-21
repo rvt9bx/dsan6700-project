@@ -3,7 +3,7 @@
 from .data import MovieRecord, iter_movies, movie_to_payload, movie_to_text
 from .embeddings import Embedder, EmbeddingBackend
 from .retriever import Hit, MovieDoc, RetrievalSettings, Retriever
-from .search import health_check, ready_check, recommend_for_group, search_movies
+from .search import health_check, ready_check, recommend_for_group
 from .vectorstore import (
     CollectionMismatchError,
     CollectionNotFoundError,
@@ -31,5 +31,4 @@ __all__ = [
     "movie_to_text",
     "ready_check",
     "recommend_for_group",
-    "search_movies",
 ]
