@@ -33,7 +33,7 @@ body {
 button { font: inherit; color: inherit; }
 h1, p { margin: 0; }
 h1 { font-size: 34px; line-height: 1.04; font-weight: 800; letter-spacing: -.025em; }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
 /* ---------- Text ---------- */
 .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--coral); }
@@ -252,6 +252,45 @@ textarea.paper:focus { outline: none; box-shadow: inset 0 0 0 2px var(--c, var(-
 .paper-wrap textarea.paper { padding-bottom: 30px; }
 .count { position: absolute; right: 12px; bottom: 8px; padding: 0 4px; border-radius: 6px; background: #FBFAF5; font-size: 12.5px; color: var(--muted); pointer-events: none; }
 .count.near { color: var(--error); font-weight: 700; }
+
+/* Filters: a collapsible box under the text box. Chips and inputs reuse the idea chips' and
+ * name inputs' look; the chosen state uses the person's color (--c), like .env.current. */
+.filters { background: var(--card); border-radius: 16px; box-shadow: inset 0 0 0 1.5px var(--line); }
+.filters summary {
+  display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 16px;
+  font-weight: 700; font-size: 16px; cursor: pointer; list-style: none;
+}
+.filters summary::-webkit-details-marker { display: none; }
+.filters summary::after {
+  content: ""; width: 8px; height: 8px; margin: -3px 2px 0 4px; flex-shrink: 0;
+  border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: rotate(45deg); transition: transform .15s;
+}
+.filters[open] summary::after { margin-top: 3px; transform: rotate(-135deg); }
+#filter-summary { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-body { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 10px; border-top: 1.5px solid var(--line); animation: enter .18s ease-out; }
+.filter-body fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.filter-body legend { padding: 0; margin-bottom: 8px; font-size: 15px; font-weight: 700; }
+.filter-body legend .muted { font-weight: 500; }
+.filter-body .link { align-self: flex-start; min-height: 36px; padding: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  min-height: 40px; padding: 6px 14px; border: none; border-radius: 99px; background: var(--card); cursor: pointer;
+  font-size: 14px; font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--line); transition: box-shadow .15s, background .15s;
+}
+.chip:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--c, var(--ink)) 14%, #fff); box-shadow: inset 0 0 0 2px var(--c, var(--ink)); font-weight: 700;
+}
+.chip[aria-pressed="true"]::before { content: "\2713"; margin-right: 6px; color: var(--c, var(--ink)); }
+.year-row { display: flex; gap: 12px; }
+.year-row label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.year-row input {
+  width: 100%; min-width: 0; height: 46px; padding: 0 14px; border: none; border-radius: 12px; background: #FBFAF5;
+  box-shadow: inset 0 0 0 1.5px var(--line); font: inherit; font-size: 16px; font-weight: 500; color: var(--ink); -moz-appearance: textfield;
+}
+.year-row input::-webkit-outer-spin-button, .year-row input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.year-row input::placeholder { color: var(--muted); opacity: 1; }
+.year-row input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--c, var(--ink)); }
 .write-foot { display: flex; flex-direction: column-reverse; gap: 8px; }
 .write-foot .btn { width: 100%; }
 .foot-btns { display: flex; flex-direction: column; gap: 8px; }
