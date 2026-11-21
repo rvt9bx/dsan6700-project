@@ -206,9 +206,7 @@ def test_turned_away_bodies_are_logged_under_their_route(log_records):
 # ---- Cache-Control
 
 
-@pytest.mark.parametrize(
-    "path", ["/health", "/ready", "/recommend/nope/status", "/movies/search?q=x"]
-)
+@pytest.mark.parametrize("path", ["/health", "/ready", "/recommend/nope/status"])
 def test_api_answers_are_never_stored(monkeypatch, path):
     monkeypatch.setattr(main, "ready_check", lambda: True)  # no Qdrant needed
 

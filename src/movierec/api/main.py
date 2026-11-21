@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
@@ -20,18 +20,17 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from movierec import __version__ as APP_VERSION
 from movierec.api import metrics
 from movierec.api.auth import require_operator
 from movierec.api.limits import RateLimiter
 from movierec.api.middleware import log_requests
 from movierec.api.policies import apply_request_policies
 from movierec.api.schemas import (
-    MAX_QUERY_CHARS,
     ErrorMessage,
     HealthStatus,
     JobAccepted,
     JobStatus,
-    MovieRecommendation,
     ReadyStatus,
     RecommendationRequest,
     RecommendationResponse,
@@ -42,11 +41,9 @@ from movierec.logging_setup import configure_logging
 from movierec.retrieval.search import (
     ready_check,
     recommend_for_group,
-    search_movies,
 )
 
 UI_DIR = Path(__file__).resolve().parent.parent / "ui"
-APP_VERSION = "0.1.0"
 
 
 @asynccontextmanager
@@ -344,21 +341,6 @@ def log_watch(event: WatchEvent) -> None:
     logger.bind(event="watch_click", job_id=event.job_id, movie_id=event.movie_id).info(
         "Watch click"
     )
-
-
-@app.get(
-    "/movies/search",
-    response_model=list[MovieRecommendation],
-    summary="Search movies (placeholder)",
-    tags=["Movies"],
-)
-def movie_search(
-    q: str = Query(
-        ..., min_length=1, max_length=MAX_QUERY_CHARS, description="What to search for"
-    ),
-):
-    """Placeholder for a future search bar: returns fixed sample data for now."""
-    return search_movies(q)
 
 
 @app.get(
