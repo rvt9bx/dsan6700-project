@@ -130,6 +130,22 @@
       <p id="old-pick" class="small muted" hidden>Starting fresh, so nobody sees your old pick. <button class="link" data-action="show-old">Show what I wrote</button> <button class="link" data-action="keep-old">Keep my old pick</button></p>
       <p id="pick-error" class="error" hidden>Write a few words first, even just a movie you love.</p>
       <div class="ideas" id="ideas" hidden><!-- filled by renderIdeas() while the mood map is paused --></div>
+      <details class="filters" id="filters">
+        <summary>Filters <span class="muted small" id="filter-summary">Any genre, any year</span></summary>
+        <div class="filter-body">
+          <fieldset>
+            <legend>Genres <span class="muted small">(any of these)</span></legend>
+            <div class="chips" id="genre-chips"><!-- filled by renderFilters() --></div>
+          </fieldset>
+          <div class="year-row">
+            <label>From <input type="number" id="year-min" inputmode="numeric" placeholder="Any"></label>
+            <label>To <input type="number" id="year-max" inputmode="numeric" placeholder="Any"></label>
+          </div>
+          <p class="error" id="year-error" role="alert" hidden></p>
+          <p class="muted small">Filters narrow the movies we look at for your pick. The final choice still weighs everyone's descriptions.</p>
+          <button class="link" data-action="clear-filters">Clear filters</button>
+        </div>
+      </details>
       <div class="spacer"></div>
       <div class="envelopes only-narrow" id="input-envs"></div>
       <div class="write-foot">

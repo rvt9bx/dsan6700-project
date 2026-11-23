@@ -31,6 +31,7 @@ from movierec.api.schemas import (
     HealthStatus,
     JobAccepted,
     JobStatus,
+    PickFilters,
     ReadyStatus,
     RecommendationRequest,
     RecommendationResponse,
@@ -86,7 +87,12 @@ JOB_NOT_FOUND = {
 }
 
 
-def _run_recommendation_job(job_id: str, query_texts: list[str], top_k: int) -> None:
+def _run_recommendation_job(
+    job_id: str,
+    query_texts: list[str],
+    top_k: int,
+    filters: list[PickFilters] | None,
+) -> None:
     """Background worker: run the recommendation, update the job, and log how it went.
 
     Logs counts, scores and timings only, never the descriptions themselves.
@@ -96,7 +102,7 @@ def _run_recommendation_job(job_id: str, query_texts: list[str], top_k: int) -> 
         metrics.JOBS_IN_FLIGHT.inc()
         started = time.perf_counter()
         try:
-            result = recommend_for_group(query_texts, top_k)
+            result = recommend_for_group(query_texts, top_k, filters=filters)
         except Exception:
             # The details go to the server log; callers only see that it failed
             with logger.contextualize(duration_ms=_ms_since(started)):
@@ -280,7 +286,13 @@ def submit_recommendation(body: RecommendationRequest, request: Request):
     context = contextvars.copy_context()
     thread = threading.Thread(
         target=context.run,
-        args=(_run_recommendation_job, job_id, body.query_texts, body.top_k),
+        args=(
+            _run_recommendation_job,
+            job_id,
+            body.query_texts,
+            body.top_k,
+            body.filters,
+        ),
         daemon=True,
     )
     thread.start()

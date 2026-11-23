@@ -2,8 +2,18 @@
 
 from .data import MovieRecord, iter_movies, movie_to_payload, movie_to_text
 from .embeddings import Embedder, EmbeddingBackend
-from .retriever import Hit, MovieDoc, RetrievalSettings, Retriever
-from .search import health_check, ready_check, recommend_for_group
+from .retriever import Hit, MovieDoc, QueryFilter, RetrievalSettings, Retriever
+from .search import (
+    AGGREGATION_STRATEGIES,
+    aggregate_approval,
+    aggregate_fairness,
+    aggregate_least_misery,
+    aggregate_mean,
+    aggregate_most_pleasure,
+    aggregate_nash,
+    ready_check,
+    recommend_for_group,
+)
 from .vectorstore import (
     CollectionMismatchError,
     CollectionNotFoundError,
@@ -13,6 +23,7 @@ from .vectorstore import (
 )
 
 __all__ = [
+    "AGGREGATION_STRATEGIES",
     "CollectionMismatchError",
     "CollectionNotFoundError",
     "Embedder",
@@ -21,11 +32,17 @@ __all__ = [
     "MovieDoc",
     "MovieRecord",
     "QdrantStore",
+    "QueryFilter",
     "RetrievalSettings",
     "Retriever",
+    "aggregate_approval",
+    "aggregate_fairness",
+    "aggregate_least_misery",
+    "aggregate_mean",
+    "aggregate_most_pleasure",
+    "aggregate_nash",
     "build_filter",
     "collection_name",
-    "health_check",
     "iter_movies",
     "movie_to_payload",
     "movie_to_text",

@@ -290,7 +290,7 @@ def test_metric_labels_hold_no_job_ids(metrics_token):
 
 
 def test_a_completed_job_is_counted(monkeypatch):
-    def recommend(query_texts, top_k):
+    def recommend(query_texts, top_k, filters=None):
         movie = MovieRecommendation(id="1", title="Knives Out", group_score=0.8)
         return RecommendationResponse(top_pick=movie, alternates=[])
 
@@ -308,7 +308,8 @@ def test_a_completed_job_is_counted(monkeypatch):
         )
 
     def fast_and_completed():
-        # the series docs/SLO.md counts as good: if this test breaks, fix the SLO query too
+        # the series the SLO (docs/discussion.md) counts as good: if this test breaks, fix the
+        # SLO panels in monitoring/grafana/dashboards/movierec.json too
         return REGISTRY.get_sample_value(
             "movierec_recommend_job_duration_seconds_bucket",
             {"outcome": "completed", "le": "5.0"},
@@ -316,7 +317,7 @@ def test_a_completed_job_is_counted(monkeypatch):
 
     before = completed() or 0.0
     before_fast = fast_and_completed() or 0.0
-    main._run_recommendation_job("job-1", ["a"], 5)
+    main._run_recommendation_job("job-1", ["a"], 5, None)
 
     assert completed() == before + 1
     assert fast_and_completed() == before_fast + 1
