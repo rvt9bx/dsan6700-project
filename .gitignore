@@ -149,6 +149,8 @@ dmypy.json
 *.csv
 *.parquet
 *.jsonl
+*.json
+!**/eval_queries.jsonl
 
 # Model cache
 models/
