@@ -151,6 +151,7 @@ dmypy.json
 *.jsonl
 *.json
 !**/eval_queries.jsonl
+!**/eval/results/*
 
 # Model cache
 models/
