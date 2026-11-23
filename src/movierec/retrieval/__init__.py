@@ -1,5 +1,6 @@
 """Vector retrieval for movierec: fastembed embeddings stored and searched in Qdrant."""
 
+from .bm25 import BM25Retriever
 from .data import MovieRecord, iter_movies, movie_to_payload, movie_to_text
 from .embeddings import Embedder, EmbeddingBackend
 from .retriever import Hit, MovieDoc, QueryFilter, RetrievalSettings, Retriever
@@ -25,6 +26,7 @@ from .vectorstore import (
 
 __all__ = [
     "AGGREGATION_STRATEGIES",
+    "BM25Retriever",
     "CollectionMismatchError",
     "CollectionNotFoundError",
     "Embedder",
