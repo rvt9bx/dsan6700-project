@@ -156,5 +156,8 @@ models/
 # Usage event logs
 logs/
 
+# Deploy history, written on the instance by scripts/deploy.sh
+deploy.log
+
 # Local Qdrant
 qdrant/

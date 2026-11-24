@@ -8,7 +8,9 @@ x-movierec-env: &movierec-env
 services:
   app:
     build: .
-    image: movierec:latest
+    # The image scripts/deploy.sh saved in .env (a published version, pinned by digest); without one,
+    # the local build. On the instance, deploy with the script, not `up --build`
+    image: ${MOVIEREC_IMAGE:-movierec:latest}
     env_file:
       - path: .env
         required: false                         # a fresh clone runs on defaults; copy .env.example to .env to override
@@ -62,7 +64,7 @@ services:
   # run it on purpose with `docker compose run --rm ingest` (add --limit 100 for a quick test)
   ingest:
     build: .
-    image: movierec:latest                      # the same image as app, with a different command
+    image: ${MOVIEREC_IMAGE:-movierec:latest}   # the same image as app, with a different command
     entrypoint: ["movierec-ingest"]
     profiles: [ingest]
     env_file:
