@@ -33,6 +33,7 @@ def run_collection(
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line options for movierec-collect."""
     p = argparse.ArgumentParser(
         prog="movierec-collect",
         description="Download IMDb datasets, clean titles, and enrich with TMDB metadata.",
@@ -61,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the collection pipeline from the command line. Returns the exit code."""
     args = build_parser().parse_args(argv)
     configure_logging(log_file=False)
     run_collection(

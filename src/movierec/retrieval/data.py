@@ -40,11 +40,13 @@ def clean_text(value: object) -> str:
 
 
 def parse_int(value: str | None) -> int | None:
+    """Integer from a string. Returns None for None or blank."""
     s = (value or "").strip()
     return int(s) if s else None
 
 
 def parse_float(value: str | float | None) -> float | None:
+    """Float from a string or number. Returns None if invalid, NaN or infinite."""
     try:
         f = float("" if value is None else value)
     except (TypeError, ValueError):
@@ -85,6 +87,7 @@ def parse_genres(raw: object) -> list[str]:
         return []
 
     def _extract_from_list(parsed: list) -> list[str]:
+        """Genre names from a list of strings or {'name': ...} dicts."""
         genres = []
         for item in parsed:
             if isinstance(item, str):

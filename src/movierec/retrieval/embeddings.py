@@ -19,19 +19,24 @@ class EmbeddingBackend(Protocol):
     model_name: str
 
     @property
-    def dim(self) -> int: ...
+    def dim(self) -> int:
+        """Length of each vector the model returns."""
 
-    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]: ...
+    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed movie text (stored side)."""
 
-    def embed_queries(self, texts: Sequence[str]) -> list[list[float]]: ...
+    def embed_queries(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed user text (query side)."""
 
-    def warmup(self) -> None: ...
+    def warmup(self) -> None:
+        """Load the model now, so the first request isn't slow."""
 
 
 class Embedder:
     """fastembed model loaded lazily, once per process."""
 
     def __init__(self, model_name: str, cache_dir: str | Path, batch_size: int = 64):
+        """Remember the settings; the weights are loaded on first use."""
         self.model_name = model_name
         self.cache_dir = Path(cache_dir)
         self.batch_size = batch_size
@@ -41,11 +46,13 @@ class Embedder:
     # ---- model lookup -------------------------------------------------
     @staticmethod
     def _supported() -> dict[str, dict]:
+        """fastembed's supported models, keyed by model name."""
         from fastembed import TextEmbedding
 
         return {m["model"]: m for m in TextEmbedding.list_supported_models()}
 
     def _check_supported(self) -> dict:
+        """This model's fastembed info. Raises ValueError if it isn't supported."""
         supported = self._supported()
         if self.model_name not in supported:
             examples = ", ".join(sorted(supported)[:8])
@@ -65,6 +72,7 @@ class Embedder:
 
     @property
     def model(self):
+        """The fastembed model, downloaded and loaded on first use."""
         if self._model is None:
             from fastembed import TextEmbedding
 

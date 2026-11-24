@@ -35,6 +35,7 @@ def _load_settings():
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line options for movierec-ingest."""
     p = argparse.ArgumentParser(
         prog="movierec-ingest",
         description="Embed the TMDB movies Parquet into Qdrant.",
@@ -52,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Embed the movies into Qdrant from the command line. Returns the exit code."""
     args = build_parser().parse_args(argv)
     configure_logging(log_file=False)
 
@@ -66,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     retriever.store.ensure_collection()
 
     def docs():
+        """Each cleaned movie as a MovieDoc, ready to embed."""
         for r in records:
             yield MovieDoc(
                 tmdb_id=r.tmdb_id, text=movie_to_text(r), payload=movie_to_payload(r)
