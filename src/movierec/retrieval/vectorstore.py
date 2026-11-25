@@ -197,6 +197,23 @@ class QdrantStore:
             for p in result.points
         ]
 
+    def iter_payloads(self, batch_size: int = 1000):
+        """Yield (tmdb_id, payload) for every stored movie, without vectors."""
+        self.require_collection()
+        offset = None
+        while True:
+            points, offset = self.client.scroll(
+                self.collection,
+                limit=batch_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for p in points:
+                yield int(p.id), dict(p.payload or {})
+            if offset is None:
+                break
+
     def count(self) -> int:
         """Return the exact number of points stored in the collection."""
         return self.client.count(self.collection, exact=True).count

@@ -21,6 +21,7 @@ dependencies = [
     "pydantic>=2.14.1",
     "pydantic-settings>=2.16.0",
     "qdrant-client>=1.20.0",
+    "rank-bm25>=0.2.2",
     "uvicorn>=0.54.0",
 ]
 
@@ -52,6 +53,9 @@ loadtest = [
 [project.scripts]
 movierec-collect = "movierec.datacollection.pipeline:main"
 movierec-ingest = "movierec.retrieval.ingest:main"
+movierec-eval-download = "movierec.evaluation.download_eval_data:main"
+movierec-eval-build = "movierec.evaluation.build_eval_set:main"
+movierec-eval-compare = "movierec.evaluation.compare_retrieval:main"
 
 
 [tool.ruff.lint]
