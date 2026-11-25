@@ -10,6 +10,7 @@ from pydantic import SecretStr, ValidationError
 
 from movierec.api import main
 from movierec.api.limits import RateLimiter
+from movierec.api.policies import BODY_METHODS
 from movierec.api.schemas import MovieRecommendation, RecommendationResponse
 from movierec.config import Settings, settings
 
@@ -193,6 +194,27 @@ def test_body_without_a_length_is_411():
     )
 
     assert response.status_code == 411
+
+
+def test_length_that_is_not_a_number_is_400():
+    response = client.post(
+        "/recommend",
+        content=b'{"query_texts": ["x"]}',
+        headers={"Content-Type": "application/json", "Content-Length": "lots"},
+    )
+
+    assert response.status_code == 400
+    assert "Content-Length" in response.json()["detail"]
+
+
+def test_every_route_with_a_body_documents_the_body_errors():
+    # The checks run in middleware, so /docs only shows them if each route lists them
+    paths = client.get("/openapi.json").json()["paths"]
+    for path, operations in paths.items():
+        for method, operation in operations.items():
+            if method.upper() in BODY_METHODS:
+                listed = set(operation["responses"])
+                assert {"400", "411", "413", "415"} <= listed, f"{method} {path}"
 
 
 def test_turned_away_bodies_are_logged_under_their_route(log_records):

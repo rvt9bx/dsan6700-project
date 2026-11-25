@@ -7,10 +7,26 @@ from collections.abc import Awaitable, Callable
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
+from movierec.api.schemas import ErrorMessage
 from movierec.config import settings
 
 BODY_METHODS = {"POST", "PUT", "PATCH"}
 JSON_MEDIA_TYPE = "application/json"
+
+# What body_problem can answer, for the /docs entry of every route that takes a body.
+# The checks run in middleware, before any route, so FastAPI cannot find them on its own
+BODY_ERROR_RESPONSES: dict[int | str, dict] = {
+    400: {
+        "model": ErrorMessage,
+        "description": "The Content-Length header is not a number",
+    },
+    411: {
+        "model": ErrorMessage,
+        "description": "A body was sent without a Content-Length header",
+    },
+    413: {"model": ErrorMessage, "description": "The body is over MAX_BODY_BYTES"},
+    415: {"model": ErrorMessage, "description": "The body is not JSON"},
+}
 
 # For /static URLs carrying a content hash (?v=...): the file at that URL never changes
 LONG_LIVED = "public, max-age=31536000, immutable"
