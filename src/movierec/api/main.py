@@ -25,7 +25,7 @@ from movierec.api import metrics
 from movierec.api.auth import require_operator
 from movierec.api.limits import RateLimiter
 from movierec.api.middleware import log_requests
-from movierec.api.policies import apply_request_policies
+from movierec.api.policies import BODY_ERROR_RESPONSES, apply_request_policies
 from movierec.api.schemas import (
     ErrorMessage,
     HealthStatus,
@@ -229,8 +229,7 @@ def home():
     summary="Start a recommendation",
     tags=["Recommendations"],
     responses={
-        413: {"model": ErrorMessage, "description": "The body is over MAX_BODY_BYTES"},
-        415: {"model": ErrorMessage, "description": "The body is not JSON"},
+        **BODY_ERROR_RESPONSES,
         429: {
             "model": ErrorMessage,
             "description": "Too many recommendations from this client; wait Retry-After "
@@ -347,6 +346,7 @@ def recommendation_results(job_id: str):
     status_code=204,
     summary="Record that a group chose a movie",
     tags=["Usage events"],
+    responses=BODY_ERROR_RESPONSES,
 )
 def log_watch(event: WatchEvent) -> None:
     """Called when someone taps "We're watching ...". Writes the click to the app's log."""

@@ -73,6 +73,7 @@ Add `-i` to any command to see the status code and headers. What each status cod
 | 200  | OK                                                              | all `GET` endpoints                            |
 | 202  | Job accepted; poll its status                                   | `POST /recommend`                              |
 | 204  | Click recorded; no body                                         | `POST /events/watch`                           |
+| 400  | The `Content-Length` header is not a whole number               | every `POST`                                   |
 | 401  | Missing or wrong bearer token                                   | `/metrics`                                     |
 | 403  | `METRICS_TOKEN` is not set on the server, so nobody may call it | `/metrics`                                     |
 | 404  | No job with that id: finished jobs are kept for an hour, and all jobs are lost when the server restarts | `/recommend/{job_id}/status`, `/results` |
