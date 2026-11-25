@@ -40,7 +40,7 @@
       "id": 2,
       "type": "stat",
       "title": "Good recommendations (SLI)",
-      "description": "Share of recommendation jobs in the selected range that completed within 5 s. Jobs that failed, took longer, or were refused with a 5xx count as bad. Target: 99%. See docs/SLO.md.",
+      "description": "Share of recommendation jobs in the selected range that completed within 5 s. Jobs that failed, took longer, or were refused with a 5xx count as bad. Target: 99%. See docs/discussion.md.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

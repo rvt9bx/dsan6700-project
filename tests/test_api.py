@@ -1,4 +1,6 @@
 import re
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -69,6 +71,101 @@ def test_readiness_check_that_crashes_is_503_not_500(monkeypatch):
     monkeypatch.setattr(main, "ready_check", crash)
 
     assert client.get("/ready").status_code == 503
+
+
+# ---- /health answers while slow work is in flight
+
+# Loose enough for a slow CI runner, far below how long the blocked work would take
+HEALTH_DEADLINE_SECONDS = 1.0
+GIVE_UP_SECONDS = 5.0
+
+
+class Blocker:
+    """Stands in for slow work: says when it has started, then waits to be released."""
+
+    def __init__(self):
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def wait(self):
+        self.started.set()
+        if not self.release.wait(GIVE_UP_SECONDS):
+            raise TimeoutError("the test never released the slow work")
+
+
+@pytest.fixture
+def server(monkeypatch):
+    """A client whose requests share one event loop, like the real server.
+
+    Without the `with`, TestClient gives each call its own loop, so a request that
+    blocked the loop could never delay /health and these tests would prove nothing.
+    """
+    monkeypatch.setattr(main, "configure_logging", lambda: None)  # keep test logging
+    with TestClient(main.app) as shared:
+        yield shared
+
+
+def assert_health_answers_quickly(server):
+    started = time.perf_counter()
+    response = server.get("/health")
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    assert elapsed < HEALTH_DEADLINE_SECONDS
+
+
+def test_health_answers_while_a_slow_ready_check_is_in_flight(monkeypatch, server):
+    # The first real /ready loads the embedding model, which takes seconds
+    slow = Blocker()
+
+    def slow_ready_check():
+        slow.wait()
+        return True
+
+    monkeypatch.setattr(main, "ready_check", slow_ready_check)
+    ready_responses = []
+    caller = threading.Thread(
+        target=lambda: ready_responses.append(server.get("/ready"))
+    )
+    caller.start()
+    try:
+        assert slow.started.wait(GIVE_UP_SECONDS), "/ready never started"
+
+        assert_health_answers_quickly(server)
+    finally:
+        slow.release.set()
+        caller.join(GIVE_UP_SECONDS)
+
+    assert not caller.is_alive()
+    [ready] = ready_responses
+    assert ready.status_code == 200
+
+
+def test_health_answers_while_a_recommendation_job_is_running(monkeypatch, server):
+    slow = Blocker()
+
+    def slow_recommend(query_texts, top_k, filters=None):
+        slow.wait()
+        movie = MovieRecommendation(id="546554", title="Knives Out", group_score=0.81)
+        return RecommendationResponse(top_pick=movie, alternates=[])
+
+    monkeypatch.setattr(main, "recommend_for_group", slow_recommend)
+    job_id = server.post("/recommend", json={"query_texts": ["a heist"]}).json()[
+        "job_id"
+    ]
+    try:
+        assert slow.started.wait(GIVE_UP_SECONDS), "the job never started"
+
+        assert_health_answers_quickly(server)
+        assert server.get(f"/recommend/{job_id}/status").json()["status"] == "running"
+    finally:
+        slow.release.set()
+
+    deadline = time.monotonic() + GIVE_UP_SECONDS
+    while main.jobs[job_id]["status"] == "running" and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert main.jobs[job_id]["status"] == "completed"
 
 
 # ---- job status and results
@@ -218,11 +315,6 @@ def test_bad_recommend_request_is_422_naming_the_field(
     assert problem_field in error["loc"]
     assert error["msg"]
     assert no_background_jobs == []
-
-
-@pytest.mark.parametrize("query", ["", "x" * 1001])
-def test_bad_search_query_is_422(query):
-    assert client.get("/movies/search", params={"q": query}).status_code == 422
 
 
 # ---- documentation: every endpoint in /docs and in the README

@@ -24,7 +24,7 @@ JOBS = Counter(
     "Recommendation jobs that finished, by outcome (completed or failed)",
     ["outcome"],
 )
-# The SLO (docs/SLO.md) counts completed jobs in the le="5.0" bucket as good, so keep
+# The SLO (docs/discussion.md) counts completed jobs in the le="5.0" bucket as good, so keep
 # 5 among the buckets and keep the outcome label
 JOB_SECONDS = Histogram(
     "movierec_recommend_job_duration_seconds",

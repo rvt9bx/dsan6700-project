@@ -17,7 +17,7 @@ Status as of 2026-10-29. Numbers in brackets are GitHub issues (`#`) and pull re
    group ranking, and return a top pick and alternates with poster, year and genres (`tests/test_search.py`).
    **Done** [PR #19, PR #22]
 6. The API: `POST /recommend`, `GET /recommend/{job_id}/status`, `GET /recommend/{job_id}/results`, `/health`,
-   `/ready`, with schemas; `/movies/search` is a placeholder for later. **Done** [#4, PR #15, PR #19]
+   `/ready`, with schemas; the `/movies/search` placeholder was removed (it returned sample data). **Done** [#4, PR #15, PR #19]
 7. The user-facing page: a page served by FastAPI where each person takes a turn on one device, then everyone sees
    the group pick. **Done** [#5, #14, PR #13, PR #20, PR #24]
 8. Docker and Compose; deploy on Jetstream2; only the app's port open (8080; Qdrant's 6333 stays internal).

@@ -1,5 +1,5 @@
 # Prometheus collects the app's /metrics every 15 seconds and keeps 30 days of history
-# (set in compose.yml), enough for the SLO's 28-day window in docs/SLO.md.
+# (set in compose.yml), enough for the SLO's 28-day window in docs/discussion.md.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

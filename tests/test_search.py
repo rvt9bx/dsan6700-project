@@ -147,10 +147,9 @@ def test_group_without_vectors_means_no_matches(mock_retriever):
     assert search.recommend_for_group(["a", "b"]).top_pick.title == "No matches found"
 
 
-def test_ready_check_and_stub(mock_retriever):
+def test_ready_check(mock_retriever):
     mock_retriever.ready.return_value = True
     assert search.ready_check() is True
-    assert search.search_movies("x")[0].id == "101"
 
 
 # ---- per-person filters: each narrows only that person's own retrieval

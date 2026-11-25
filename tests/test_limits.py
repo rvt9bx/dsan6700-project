@@ -206,9 +206,7 @@ def test_turned_away_bodies_are_logged_under_their_route(log_records):
 # ---- Cache-Control
 
 
-@pytest.mark.parametrize(
-    "path", ["/health", "/ready", "/recommend/nope/status", "/movies/search?q=x"]
-)
+@pytest.mark.parametrize("path", ["/health", "/ready", "/recommend/nope/status"])
 def test_api_answers_are_never_stored(monkeypatch, path):
     monkeypatch.setattr(main, "ready_check", lambda: True)  # no Qdrant needed
 
@@ -310,7 +308,8 @@ def test_a_completed_job_is_counted(monkeypatch):
         )
 
     def fast_and_completed():
-        # the series docs/SLO.md counts as good: if this test breaks, fix the SLO query too
+        # the series the SLO (docs/discussion.md) counts as good: if this test breaks, fix the
+        # SLO panels in monitoring/grafana/dashboards/movierec.json too
         return REGISTRY.get_sample_value(
             "movierec_recommend_job_duration_seconds_bucket",
             {"outcome": "completed", "le": "5.0"},

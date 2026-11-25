@@ -45,6 +45,9 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.1",
 ]
+loadtest = [
+    "locust>=2.47.0",
+]
 
 [project.scripts]
 movierec-collect = "movierec.datacollection.pipeline:main"

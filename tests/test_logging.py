@@ -132,12 +132,12 @@ def test_failed_job_is_logged_as_an_error_with_its_ids(log_records, monkeypatch)
 
 
 def test_unexpected_error_is_a_json_500_with_the_request_id(log_records, monkeypatch):
-    def crash(q):
+    def crash(job_id):
         raise RuntimeError("bug")
 
-    monkeypatch.setattr(main, "search_movies", crash)
+    monkeypatch.setattr(main, "_get_job", crash)
 
-    response = client.get("/movies/search", params={"q": "heist"})
+    response = client.get("/recommend/job-1/status")
 
     assert response.status_code == 500
     assert response.json()["request_id"] == response.headers["X-Request-ID"]
@@ -160,7 +160,6 @@ def test_users_text_is_never_logged(log_records, fake_recommender):
     ok = client.post("/recommend", json={"query_texts": [SECRET_TEXT]})
     wait_for_job(ok.json()["job_id"])
     client.post("/recommend", json={"query_texts": [SECRET_TEXT + "x" * 1000]})
-    client.get("/movies/search", params={"q": SECRET_TEXT})
 
     assert log_records
     for record in log_records:

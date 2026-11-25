@@ -13,7 +13,6 @@ from .search import (
     aggregate_nash,
     ready_check,
     recommend_for_group,
-    search_movies,
 )
 from .vectorstore import (
     CollectionMismatchError,
@@ -49,5 +48,4 @@ __all__ = [
     "movie_to_text",
     "ready_check",
     "recommend_for_group",
-    "search_movies",
 ]
