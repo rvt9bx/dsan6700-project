@@ -33,6 +33,7 @@ class RateLimiter:
         burst: int,
         clock: Callable[[], float] = time.monotonic,
     ):
+        """Allow `burst` calls at once, then `per_minute` a minute, per client."""
         self.rate = per_minute / 60  # tokens per second
         self.burst = burst
         self.clock = clock

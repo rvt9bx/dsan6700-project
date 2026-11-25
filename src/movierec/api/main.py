@@ -208,6 +208,7 @@ def _index_html() -> str:
     html = (UI_DIR / "index.html").read_text(encoding="utf-8")
 
     def versioned(match: re.Match[str]) -> str:
+        """Add the file's content hash to one /static URL."""
         name = match.group(1)
         digest = hashlib.sha256((UI_DIR / name).read_bytes()).hexdigest()[:12]
         return f'"/static/{name}?v={digest}"'
