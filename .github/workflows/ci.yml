@@ -57,6 +57,7 @@ jobs:
   # never publish: only code merged to main reaches the registry
   image:
     needs: [lint-and-test, secret-scan]
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }} # a release reuses the image below, so tags skip this
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -94,6 +95,45 @@ jobs:
       - name: Publish the tested image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker push "$IMAGE"
+
+  # A release is a version tag (v0.2.0) pushed on a commit already merged to main. It does not
+  # rebuild: it gives the image CI already tested and published for that commit a version name,
+  # so a release is byte-for-byte the image that passed the smoke test
+  release:
+    needs: [lint-and-test, secret-scan]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TESTED: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+      RELEASE: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Check the tag matches the version in pyproject.toml
+        # The version lives in one place; a tag that disagrees with it is a mistake, not a release
+        run: |
+          VERSION=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $VERSION in pyproject.toml"
+            exit 1
+          fi
+
+      - name: Log in to the GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Publish the tested image under the release version
+        # imagetools copies the published manifest as it is, so the release keeps the tested digest
+        run: |
+          if ! docker buildx imagetools inspect "$TESTED" > /dev/null; then
+            echo "No published image for this commit: tag a commit that has been merged to main"
+            exit 1
+          fi
+          docker buildx imagetools create --tag "$RELEASE" "$TESTED"
+          docker buildx imagetools inspect "$RELEASE" | grep -m1 '^Digest:'
 
 # Sources:
 # https://docs.github.com/en/actions/tutorials/create-an-example-workflow#viewing-the-activity-for-a-workflow-run
